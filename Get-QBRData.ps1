@@ -1,3 +1,42 @@
+<#
+.SYNOPSIS
+	Pull housekeeping reports from a domain controller for periodic review. 
+.DESCRIPTION
+	This script produces reports intended for customer review as part of 
+	periodic housekeeping, license audits, true-ups, etc. 
+	
+	These reports can be generated in HTML or CSV format - most of the HTML 
+	reports print out nicely and work well for print>strikethrough>scanback.
+	CSV is for doing fancy stuff. 	
+	
+	This script depends on the ActiveDirectory module and is intended to run
+	from a domain controller, though any member server or workstation with the
+	RSAT-AD-PowerShell module installed will work. 
+	#Install-WindowsFeature RSAT-AD-PowerShell
+	
+	It has been tested on Windows Server 2008R2 with WMF 4 and higher though
+	other platforms may also work. I'm not a real developer. 
+
+	When run with a local SYSTEM account, this script produces
+	- inactive users report
+	- inactive computers report
+	- domain admin group membership report
+	- custom AD group membership report
+	- errors (instead of a server storage space report)
+		
+	When run with a domain admin, this script additionally produces
+	- server storage space report (as intended)
+		
+.EXAMPLE
+	.\Get-QBRData.ps1
+
+.NOTES
+    Author:             Douglas Hammond 
+    Changelog:
+        2020-08-28		Added script header for first github version. 
+
+#>
+
 #DQDQBRDC - Douglas' Quick and Dirty QBR Data Collector
 #Requires -Module activedirectory
 
@@ -136,7 +175,9 @@ If ($zipoutput = $true){
 	Write-Host "Removing ZIP working directory."
 	Remove-Item -Path $scratchpath -recurse -force
 
+	If (Test-Path -LiteralPath $destinationZipFileName){
 	Write-Host "ZIP file $destinationZipFileName creation finished."
+	}
 }
 
 Write-Host "Done."
