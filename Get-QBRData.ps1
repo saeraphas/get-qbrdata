@@ -34,6 +34,7 @@
     Changelog:
         2020-08-28		Added script header for first github version. 
         2020-09-02		Added check for NT AUTHORITY\SYSTEM to prevent ugly errors on storage report. 
+		2020-09-02		Added check to remove old output ZIP before creating a new one. 
 #>
 
 #DQDQBRDC - Douglas' Quick and Dirty QBR Data Collector
@@ -174,6 +175,10 @@ If ($zipoutput = $true){
 	Write-Host "Adding files to ZIP."
 	#zip scratch to output using powershell v4 method
 	$destinationZipFileName = $outputpath + "QBRData.zip"
+	If (Test-Path -LiteralPath $destinationZipFileName){
+		Write-Warning "ZIP file $destinationZipFileName already exists. Removing."
+		Remove-Item -Path $destinationZipFileName -Force
+		}
 	[Reflection.Assembly]::LoadWithPartialName("System.IO.Compression.FileSystem") | Out-Null
 	[System.IO.Compression.ZipFile]::CreateFromDirectory($scratchpath, $destinationZipFileName) | Out-Null
 
