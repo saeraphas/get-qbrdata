@@ -37,6 +37,7 @@
         2020-09-02		Added check for NT AUTHORITY\SYSTEM to prevent ugly errors on storage report. 
 		2020-09-02		Added check to remove old output ZIP before creating a new one. 
 		2020-09-14		Added services report, Expanded customization of HTML header
+		2020-09-16		Fixed services report, output works as intended now.
 #>
 
 #DQDQBRDC - Douglas' Quick and Dirty QBR Data Collector
@@ -200,7 +201,7 @@ Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby
 
 # Get service accounts report as selected output type
 $Title = "Service Accounts Report"
-$Subtitle = "Windows Services using a custom Log On As account"
+$Subtitle = "Windows Services using a custom Log On As account. This report may be empty."
 Write-Host "Collecting $Title. This may take a while."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
@@ -209,12 +210,12 @@ if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 	{
 		"CSV" {
 # not tested yet
-			$Servers = Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name; $output = foreach ($server in $servers){if (test-connection -computername $server -count 1 -quiet){Get-WmiObject Win32_Service -ComputerName $Servers -Name $_ -Filter "not StartMode='Disabled'" ErrorAction SilentlyContinue | Where -Property StartName -notlike "" | Where -Property StartName -notmatch "LocalSystem" | Where -Property StartName -notmatch "LocalService" | Where -Property StartName -notmatch "NetworkService" | Select-Object Name, StartName}; $output | export-csv $serviceaccounts -notypeinformation	}
+			$Servers = Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name; $output = foreach ($server in $servers){if (test-connection -computername $server -count 1 -quiet){Get-WmiObject Win32_Service -ComputerName $Servers -Filter "not StartMode='Disabled'" ErrorAction SilentlyContinue | Where -Property StartName -notlike "" | Where -Property StartName -notmatch "LocalSystem" | Where -Property StartName -notmatch "LocalService" | Where -Property StartName -notmatch "NetworkService" | Select-Object Name, StartName}; $output | export-csv $serviceaccounts -notypeinformation	}
 		}
 		"HTML" {
 			$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
 			$Servers = Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-			Get-WmiObject Win32_Service -ComputerName $Servers -Name $_ -Filter "not StartMode='Disabled'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartName | Where -Property StartName -notlike "" | Where -Property StartName -notmatch "LocalSystem" | Where -Property StartName -notmatch "LocalService" | Where -Property StartName -notmatch "NetworkService" | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $serviceaccts
+			Get-WmiObject Win32_Service -ComputerName $Servers -Filter "not StartMode='Disabled'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartName | Where -Property StartName -notlike "" | Where -Property StartName -notmatch "LocalSystem" | Where -Property StartName -notmatch "LocalService" | Where -Property StartName -notmatch "NetworkService" | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $serviceaccts
 		}
 		default{
 			Write-Error "No action defined for this output type."
