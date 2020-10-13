@@ -139,11 +139,11 @@ Write-Host "Collecting $Title. This should only take a moment."
 switch ($outputtype)
 {
 	"CSV" {
-		Get-ADUser -Properties Name,Description,lastlogondate,passwordlastset,enabled | select-object -property name,distinguishedname,lastlogondate,passwordlastset,enabled | export-csv $usersaudit -notypeinformation
+		Get-ADUser -Filter * -Properties Name,Description,lastlogondate,passwordlastset,enabled | select-object -property name,distinguishedname,lastlogondate,passwordlastset,enabled | export-csv $usersaudit -notypeinformation
 	}
 	"HTML" {
 		$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
-		Get-ADUser -Properties Name,Description,lastlogondate,passwordlastset,enabled | select-object -property name,distinguishedname,lastlogondate,passwordlastset,enabled | Sort-Object -Property lastlogondate | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $usersaudit
+		Get-ADUser -Filter * -Properties Name,Description,lastlogondate,passwordlastset,enabled | select-object -property name,distinguishedname,lastlogondate,passwordlastset,enabled | Sort-Object -Property lastlogondate | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $usersaudit
 	}
 	default{
 		Write-Error "No action defined for this output type."
