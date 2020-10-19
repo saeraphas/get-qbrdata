@@ -305,7 +305,7 @@ switch ($outputtype)
 
 #get EOL PC list and last known IP address
 #note: win10 build list from here https://docs.microsoft.com/en-us/windows/release-information/
-$Title 			= "Active Directory Groups Report"
+$Title 			= "End-of-Support PCs Report"
 $Subtitle 		= "Computer accounts in Active Directory with end-of-support operating systems"
 $reportdata 	= Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,IPv4Address | Where {$_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19041|18363|18362|17763|17134|14393"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,IPv4Address
 $reportoutput 	= $outputpath + $outputprefix + "eospcs.$outputtype"
