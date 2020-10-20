@@ -18,10 +18,12 @@
 	other platforms may also work. I'm not a real developer. 
 
 	When run with a local SYSTEM account, this script produces
+	- AD users report with last login date and last password date
+	- AD custom groups membership report
 	- inactive users report
 	- inactive computers report
+	- workstation OS end-of-life inventory
 	- domain admin group membership report
-	- custom AD group membership report
 		
 	When run with a domain admin, this script additionally produces
 	- server storage space report 
@@ -44,6 +46,7 @@
 		2020-10-13		Added passwordlastset to domain admins report. 
 		2020-10-13		Added usersaudit report by request of Nexigen CTO CH. 
 		2020-10-19 		Added EOL OS report, moved and renamed per-report variables for legibility.
+		2020-10-20 		Added LastLogonDate to EOL OS report
 		
 	Planned reports for future versions: 
 		365 account assigned licenses
@@ -307,7 +310,7 @@ switch ($outputtype)
 #note: win10 build list from here https://docs.microsoft.com/en-us/windows/release-information/
 $Title 			= "End-of-Support PCs Report"
 $Subtitle 		= "Computer accounts in Active Directory with end-of-support operating systems"
-$reportdata 	= Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,IPv4Address | Where {$_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19041|18363|18362|17763|17134|14393"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,IPv4Address
+$reportdata 	= Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19041|18363|18362|17763|17134|14393"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address
 $reportoutput 	= $outputpath + $outputprefix + "eospcs.$outputtype"
 Write-Host "Collecting $Title. This may take a while."
 switch ($outputtype)
