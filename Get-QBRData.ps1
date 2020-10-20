@@ -46,7 +46,7 @@
 		2020-10-13		Added passwordlastset to domain admins report. 
 		2020-10-13		Added usersaudit report by request of Nexigen CTO CH. 
 		2020-10-19 		Added EOL OS report, moved and renamed per-report variables for legibility.
-		2020-10-20 		Added LastLogonDate to EOL OS report
+		2020-10-20 		Added LastLogonDate to EOL OS report, only collect enabled accounts in usersaudit.
 		
 	Planned reports for future versions: 
 		365 account assigned licenses
@@ -134,7 +134,7 @@ import-module activedirectory
 # Get AD user accounts and logon dates as selected output type
 $Title 			= "User Account Audit Report"
 $Subtitle 		= "User accounts in this domain. Last logon date is reported by single domain controller and may not be 100% accurate."
-$reportdata 	= Get-ADUser -Filter * -Properties Name,Description,lastlogondate,passwordlastset,enabled | select-object -property name,distinguishedname,lastlogondate,passwordlastset,enabled | Sort-Object -Property lastlogondate
+$reportdata 	= Get-ADUser -Filter 'enabled -eq "true"' -Properties Name,Description,lastlogondate,passwordlastset | select-object -property name,distinguishedname,lastlogondate,passwordlastset | Sort-Object -Property lastlogondate
 $reportoutput 	= $outputpath + $outputprefix + "usersaudit.$outputtype"
 Write-Host "Collecting $Title. This should only take a moment."
 switch ($outputtype)
