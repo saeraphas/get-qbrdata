@@ -5,7 +5,7 @@
 	This script produces reports intended for customer review as part of 
 	periodic housekeeping, license audits, true-ups, etc. 
 	
-	These reports can be generated in HTML or CSV format - most of the HTML 
+	Reports are generated in both HTML and CSV format - most of the HTML 
 	reports print out nicely and work well for print>strikethrough>scanback.
 	CSV is for doing fancy stuff. 	
 	
@@ -47,6 +47,8 @@
 		2020-10-13		Added usersaudit report by request of Nexigen CTO CH. 
 		2020-10-19 		Added EOL OS report, moved and renamed per-report variables for legibility.
 		2020-10-20 		Added LastLogonDate to EOL OS report, only collect enabled accounts in usersaudit.
+		2020-12-02 		The McRib update: more meat! (moved report building to a function that always generates HTML and CSV)
+						Also fixed Domain Admins report, output now correctly includes nested groups. 
 		
 	Planned reports for future versions: 
 		365 account assigned licenses
@@ -67,8 +69,6 @@ $ownermail 		= "mailto:help@nexigen.com"
 $date 			= (Get-Date -DisplayHint Date).DateTime | Out-String
 $outputpath 	= "C:\Nexigen\"
 $outputprefix 	= "nex-sbr-"
-$outputtype 	= "HTML" #CSV or HTML
-#$reportingby 	= $env:UserName
 $reportingby 	= [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $reportingfrom 	= ([System.Net.Dns]::GetHostByName(($env:computerName))).Hostname
 $zipoutput 		= $true
@@ -127,234 +127,123 @@ $HTMLPost 		= @"
 <hr><p>$footerdetail</p></div>
 "@
 
+function New-Report(){
+	Param($ReportName, $Title, $Subtitle, $ReportData)
+	Write-Progress -Id 0 -Activity "Collecting report data." -CurrentOperation "Collecting $Title."
+	$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
+	$ReportOutput = $outputpath + $outputprefix + $ReportName
+	$reportdata | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath "$reportoutput.html"
+	$reportdata | export-csv "$reportoutput.csv" -notypeinformation
+}
+
 If(!(test-path $outputpath)){New-Item -ItemType Directory -Force -Path $outputpath }
 
 import-module activedirectory
 
-# Get AD user accounts and logon dates as selected output type
+Write-Progress -Id 0 -Activity "Collecting report data."
+
+# Get AD user accounts and logon dates
+$ReportName 	= "usersaudit"
 $Title 			= "User Account Audit Report"
 $Subtitle 		= "User accounts in this domain. Last logon date is reported by single domain controller and may not be 100% accurate."
 $reportdata 	= Get-ADUser -Filter 'enabled -eq "true"' -Properties Name,Description,lastlogondate,passwordlastset | select-object -property name,distinguishedname,lastlogondate,passwordlastset | Sort-Object -Property lastlogondate
-$reportoutput 	= $outputpath + $outputprefix + "usersaudit.$outputtype"
-Write-Host "Collecting $Title. This should only take a moment."
-switch ($outputtype)
-{
-	"CSV" {
-		$reportdata | export-csv $reportoutput -notypeinformation
-	}
-	"HTML" {
-		$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
-		$reportdata | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $reportoutput
-	}
-	default{
-		Write-Error "No action defined for this output type."
-	}
-}
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
-# Get inactive users as selected output type
+# Get inactive users 
+$ReportName 	= "inactiveusers"
 $Title 			= "Inactive Users Report"
 $Subtitle 		= "User accounts that have not logged on to Active Directory in 180 days or more."
 $reportdata 	= search-adaccount -accountinactive -usersonly -timespan "195" | select-object -property name,distinguishedname,lastlogondate,enabled | Where { $_.Enabled -eq $True} | Sort-Object -Property lastlogondate
 $reportoutput 	= $outputpath + $outputprefix + "inactiveusers.$outputtype"
-Write-Host "Collecting $Title. This should only take a moment."
-switch ($outputtype)
-{
-	"CSV" {
-		$reportdata | export-csv $reportoutput -notypeinformation
-	}
-	"HTML" {
-		$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
-		$reportdata | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $reportoutput
-	}
-	default{
-		Write-Error "No action defined for this output type."
-	}
-}
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get inactive computers as selected output type
+$ReportName 	= "inactivepcs"
 $Title 			= "Inactive Computers Report"
 $Subtitle 		= "Computer accounts that have not logged on to Active Directory in 180 days or more."
 $reportdata 	= search-adaccount -accountinactive -computersonly -timespan "195" | select-object -property name,distinguishedname,lastlogondate,enabled
-$reportoutput 	= $outputpath + $outputprefix + "inactivepcs.$outputtype"
-Write-Host "Collecting $Title. This should only take a moment."
-switch ($outputtype)
-{
-	"CSV" {
-		$reportdata | export-csv $reportoutput -notypeinformation
-	}
-	"HTML" {
-		$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
-		$reportdata | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $reportoutput
-	}
-	default{
-		Write-Error "No action defined for this output type."
-	}
-}
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
-# Get domain admins as selected output type
+# Get domain admins
+$ReportName 	= "domainadmins"
 $Title 			= "Domain Administrators Report"
 $Subtitle 		= "Active accounts with Domain Administrator permissions"
-$reportdata 	= Get-ADGroupMember -Identity 'Domain Admins' | Get-ADUser -Properties Name,Description,lastlogondate,passwordlastset,enabled | select-object -property name,distinguishedname,lastlogondate,passwordlastset,enabled
-$reportoutput 	= $outputpath + $outputprefix + "domainadmins.$outputtype"
-Write-Host "Collecting $Title. This should only take a moment."
-switch ($outputtype)
-{
-	"CSV" {
-		$reportdata | export-csv $reportoutput -notypeinformation
-	}
-	"HTML" {
-		$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
-		$reportdata | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $reportoutput
-	}
-	default{
-		Write-Error "No action defined for this output type."
-	}
-}
+$reportdata 	= Get-ADGroupMember -Identity 'Domain Admins' | Get-ADObject -Properties Name,distinguishedname,objectclass,Description | select-object -property name,distinguishedname,objectclass,description
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
-# Get server disk space as selected output type
+# Get server disk space 
+$ReportName 	= "diskfreespace"
 $Title 			= "Server Storage Report"
 $Subtitle 		= "Hard drive space on servers"
-# TODO - make CSV and HTML produce the same output here, figure out if one's actually better than the other or not
-#$reportdata 	= 
-$reportoutput 	= $outputpath + $outputprefix + "diskfreespace.$outputtype"
-Write-Host "Collecting $Title. This may take a while."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
-	switch ($outputtype)
-	{
-		"CSV" {
-			$Servers = Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-			$output = foreach ($server in $servers){if (test-connection -computername $server -count 1 -quiet){Get-WmiObject Win32_LogicalDisk -ComputerName $server -Filter DriveType=3 | Select-Object @{'Name'='Server Name'; 'Expression'={$server}}, DeviceID, @{'Name'='Size (GB)'; 'Expression'={[math]::truncate($_.size / 1GB)}}, @{'Name'='Freespace (GB)'; 'Expression'={[math]::truncate($_.freespace / 1GB)}}}} 
-			$output | export-csv $reportoutput -notypeinformation
-		}
-		"HTML" {
-			$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
-			$Servers = Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-			$output = Get-WmiObject Win32_LogicalDisk -ComputerName $Servers -Filter "DriveType='3'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, DeviceID, @{N="Disk Size (GB) ";e={[math]::Round($($_.Size) / 1073741824,2)}}, @{N="Free Space (GB)";e={[math]::Round($($_.FreeSpace) / 1073741824,2)}}, @{N="Used Space (%)";e={[math]::Round($($_.Size - $_.FreeSpace) / $_.Size * 100,1)}}, @{N="Used Space (GB)";e={[math]::Round($($_.Size - $_.FreeSpace) / 1073741824,2)}} 
-			$output | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $reportoutput
-		}
-		default{
-			Write-Error "No action defined for this output type."
-		}
-	}
+	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$reportdata = Get-WmiObject Win32_LogicalDisk -ComputerName $Servers -Filter "DriveType='3'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, DeviceID, @{N="Disk Size (GB) ";e={[math]::Round($($_.Size) / 1073741824,2)}}, @{N="Free Space (GB)";e={[math]::Round($($_.FreeSpace) / 1073741824,2)}}, @{N="Used Space (%)";e={[math]::Round($($_.Size - $_.FreeSpace) / $_.Size * 100,1)}}, @{N="Used Space (GB)";e={[math]::Round($($_.Size - $_.FreeSpace) / 1073741824,2)}} 
+	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }else {
 Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
 }
 
-# Get service accounts report as selected output type
+# Get service accounts 
+$ReportName 	= "serviceaccounts"
 $Title 			= "Service Accounts Report"
 $Subtitle 		= "Windows Services using a custom Log On As account. This report may be empty."
-# TODO - make CSV and HTML produce the same output here, figure out if one's actually better than the other or not
-#$reportdata 	= 
-$reportoutput 	= $outputpath + $outputprefix + "serviceaccounts.$outputtype"
-Write-Host "Collecting $Title. This may take a while."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
-	switch ($outputtype)
-	{
-		"CSV" {
-# not tested yet
-			$Servers = Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-			$output = foreach ($server in $servers){if (test-connection -computername $server -count 1 -quiet){Get-WmiObject Win32_Service -ComputerName $Servers -Filter "not StartMode='Disabled'" ErrorAction SilentlyContinue | Where -Property StartName -notlike "" | Where -Property StartName -notmatch "LocalSystem" | Where -Property StartName -notmatch "LocalService" | Where -Property StartName -notmatch "NetworkService" | Select-Object Name, StartName} 
-			$output | export-csv $reportoutput -notypeinformation	}
-		}
-		"HTML" {
-			$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
-			$Servers = Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-			$output = Get-WmiObject Win32_Service -ComputerName $Servers -Filter "not StartMode='Disabled'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartName | Where -Property StartName -notlike "" | Where -Property StartName -notmatch "LocalSystem" | Where -Property StartName -notmatch "LocalService" | Where -Property StartName -notmatch "NetworkService" 
-			$output | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $reportoutput
-		}
-		default{
-			Write-Error "No action defined for this output type."
-		}
-	}
+	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$reportdata = Get-WmiObject Win32_Service -ComputerName $Servers -Filter "not StartMode='Disabled'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartName | Where -Property StartName -notlike "" | Where -Property StartName -notmatch "LocalSystem" | Where -Property StartName -notmatch "LocalService" | Where -Property StartName -notmatch "NetworkService" 
+	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+
 }else {
 Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
 }
 
-# Get custom Active Directory Groups and their users as selected output type
-$Title = "Active Directory Groups Report"
-$Subtitle = "Groups specific to this organization and their members. Default Built-in groups are excluded."
-# TODO - make CSV and HTML produce the same output here, figure out if one's actually better than the other or not
-#$reportdata 	= 
-$reportoutput 	= $outputpath + $outputprefix + "adgroups.$outputtype"
-Write-Host "Collecting $Title. This may take a while."
-switch ($outputtype)
-{
-	"CSV" {
-		$Groups = Get-ADGroup -Filter { GroupCategory -eq "Security" -and GroupScope -eq "Global"  } -Properties isCriticalSystemObject | Where-Object { !($_.IsCriticalSystemObject)}
-		$Results = foreach( $Group in $Groups ){Get-ADGroupMember -Identity $Group | foreach {[pscustomobject]@{GroupName = $Group.Name; Name = $_.Name}}}
-		$Results | export-csv $reportoutput -notypeinformation
-	}
-	"HTML" {
-		$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
-		$Groups = Get-ADGroup -Filter { GroupCategory -eq "Security" -and GroupScope -eq "Global"  } -Properties isCriticalSystemObject | Where-Object { !($_.IsCriticalSystemObject)}
-		$Results = foreach( $Group in $Groups ){
-		    Get-ADGroupMember -Identity $Group | foreach {
-		        [pscustomobject]@{
-		            GroupName = $Group.Name
-		            Name = $_.Name
-		            }
-		        }
-		    }
-		$Results | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $reportoutput
-	}
-	default{
-	Write-Error "No action defined for this output type."
-	}
-}
+# Get custom Active Directory Groups and their users 
+$ReportName 	= "domaingroups"
+$Title 			= "Active Directory Groups Report"
+$Subtitle 		= "Groups specific to this organization and their members. Default Built-in groups are excluded."
+$Groups 		= Get-ADGroup -Filter { GroupCategory -eq "Security" -and GroupScope -eq "Global"  } -Properties isCriticalSystemObject | Where-Object { !($_.IsCriticalSystemObject)}
+$reportdata 	= foreach( $Group in $Groups ){Get-ADGroupMember -Identity $Group | foreach {[pscustomobject]@{GroupName = $Group.Name;Name = $_.Name}}}
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 #get EOL PC list and last known IP address
 #note: win10 build list from here https://docs.microsoft.com/en-us/windows/release-information/
+$ReportName 	= "eospcs"
 $Title 			= "End-of-Support PCs Report"
 $Subtitle 		= "Computer accounts in Active Directory with end-of-support operating systems"
 $reportdata 	= Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19041|18363|18362|17763|17134|14393"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address
-$reportoutput 	= $outputpath + $outputprefix + "eospcs.$outputtype"
-Write-Host "Collecting $Title. This may take a while."
-switch ($outputtype)
-{
-	"CSV" {
-		$reportdata | export-csv $reportoutput -notypeinformation
-	}
-	"HTML" {
-		$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
-		$reportdata | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath $reportoutput
-	}
-	default{
-	Write-Error "No action defined for this output type."
-	}
-}
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
-
-Write-Host "Report generation finished."
+Write-Progress -Id 0 -Activity "Collecting report data." -Status "Complete."
 
 If ($zipoutput = $true){
 	#create scratch directory and move output files there
-	Write-Host "Creating ZIP working directory."
+	Write-Progress -Id 1 -Activity "Compressing report data."
+	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Creating ZIP working directory."
 	$scratchpath = $outputpath + "scratch\"
 	If (!(Test-Path -LiteralPath $scratchpath)){New-Item -Path $scratchpath -ItemType Directory -ErrorAction Stop | Out-Null}
-	Get-ChildItem -Path $outputpath $outputprefix*.$outputtype | Move-Item -Destination $scratchpath 
+	Get-ChildItem -Path $outputpath $outputprefix*.* | Move-Item -Destination $scratchpath 
 
-	Write-Host "Adding files to ZIP."
+	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Adding files to ZIP."
 	#zip scratch to output using powershell v4 method
 	$destinationZipFileName = $outputpath + "QBRData.zip"
 	If (Test-Path -LiteralPath $destinationZipFileName){
-		Write-Warning "ZIP file $destinationZipFileName already exists. Removing."
+		Write-Warning "ZIP file $destinationZipFileName already exists. Replacing old file."
 		Remove-Item -Path $destinationZipFileName -Force
 		}
 	[Reflection.Assembly]::LoadWithPartialName("System.IO.Compression.FileSystem") | Out-Null
 	[System.IO.Compression.ZipFile]::CreateFromDirectory($scratchpath, $destinationZipFileName) | Out-Null
+	Write-Progress -Id 1 -Activity "Compressing report data." -Status "ZIP file $destinationZipFileName creation finished."
 
 	If (Test-Path -LiteralPath $destinationZipFileName){
-	Write-Host "ZIP file $destinationZipFileName creation finished."
-	}
-
 	#remove the scratch directories
-	Write-Host "Removing ZIP working directory."
+	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Removing ZIP working directory."
 	Remove-Item -Path $scratchpath -recurse -force
-
+	
+	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Complete."
+	}
 
 }
 
