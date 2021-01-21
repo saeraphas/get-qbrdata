@@ -28,6 +28,7 @@
 	When run with a domain admin, this script additionally produces
 	- server storage space report 
 	- service accounts report
+	- server interface nameserver report
 		
 .EXAMPLE
 	.\Get-QBRData.ps1
@@ -48,7 +49,9 @@
 		2020-10-19 		Added EOL OS report, moved and renamed per-report variables for legibility.
 		2020-10-20 		Added LastLogonDate to EOL OS report, only collect enabled accounts in usersaudit.
 		2020-12-02 		The McRib update: more meat! (moved report building to a function that always generates HTML and CSV)
-						Also fixed Domain Admins report, output now correctly includes nested groups. 
+						Also fixed Domain Admins report, output now correctly includes nested groups.
+		2020-12-10		Added check for empty report data to prevent console error and 0-byte output files
+		2021-01-19		Added nameserver report. 
 		
 	Planned reports for future versions: 
 		365 account assigned licenses
@@ -132,6 +135,12 @@ function New-Report(){
 	Write-Progress -Id 0 -Activity "Collecting report data." -CurrentOperation "Collecting $Title."
 	$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
 	$ReportOutput = $outputpath + $outputprefix + $ReportName
+	if (!$reportdata){
+		$reportdata = @()
+			$row = New-Object PSObject
+			$row | Add-Member -MemberType NoteProperty -Name "Result" -Value "This report is empty."
+			$reportdata += $row
+		}
 	$reportdata | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath "$reportoutput.html"
 	$reportdata | export-csv "$reportoutput.csv" -notypeinformation
 }
@@ -200,7 +209,22 @@ if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
 }
 
+# Get static nameservers on server interfaces
+$ReportName 	= "nameservers"
+$Title 			= "Static DNS servers"
+$Subtitle 		= "Windows Servers using static DNS addresses. This report may be empty."
+# but not if we're the local system account
+if ($reportingby -ne "NT AUTHORITY\SYSTEM")
+{
+	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$reportdata = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -ComputerName $Servers -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue | where {$_.DNSServerSearchOrder -ne $null} | Select-Object PsComputerName,@{Name='Nameservers';Expression={[string]::join("; ", ($_.DnsServerSearchOrder))}}
+	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+}else {
+Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
+}
+
 # Get custom Active Directory Groups and their users 
+# this will error out on groups over 5000 users until I rewrite it to use Get-ADUser -LDAPFilter
 $ReportName 	= "domaingroups"
 $Title 			= "Active Directory Groups Report"
 $Subtitle 		= "Groups specific to this organization and their members. Default Built-in groups are excluded."
