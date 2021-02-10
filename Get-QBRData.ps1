@@ -108,14 +108,14 @@ Write-Progress -Id 0 -Activity "Collecting report data."
 $ReportName 	= "usersaudit"
 $Title 			= "User Account Audit Report"
 $Subtitle 		= "User accounts in this domain. Last logon date is reported by single domain controller and may not be 100% accurate."
-$reportdata 	= Get-ADUser -Filter 'enabled -eq "true"' -Properties Name,Description,lastlogondate,passwordlastset | select-object -property name,distinguishedname,lastlogondate,passwordlastset | Sort-Object -Property lastlogondate
+$reportdata 	= Get-ADUser -Filter 'enabled -eq "true"' -Properties Name,Description,lastlogondate,passwordlastset | select-object -property name,distinguishedname,lastlogondate,passwordlastset | Sort-Object -Property lastlogondate,name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get inactive users 
 $ReportName 	= "inactiveusers"
 $Title 			= "Inactive Users Report"
 $Subtitle 		= "User accounts that have not logged on to Active Directory in 180 days or more."
-$reportdata 	= search-adaccount -accountinactive -usersonly -timespan "195" | where {$_.enabled} | select-object -property name,distinguishedname,lastlogondate | Sort-Object -Property lastlogondate
+$reportdata 	= search-adaccount -accountinactive -usersonly -timespan "195" | where {$_.enabled} | select-object -property name,distinguishedname,lastlogondate | Sort-Object -Property lastlogondate,name
 $reportoutput 	= $outputpath + $outputprefix + "inactiveusers.$outputtype"
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
@@ -123,14 +123,14 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 $ReportName 	= "inactivepcs"
 $Title 			= "Inactive Computers Report"
 $Subtitle 		= "Computer accounts that have not logged on to Active Directory in 180 days or more."
-$reportdata 	= search-adaccount -accountinactive -computersonly -timespan "195" | where {$_.enabled} | select-object -property name,distinguishedname,lastlogondate | Sort-Object -Property lastlogondate
+$reportdata 	= search-adaccount -accountinactive -computersonly -timespan "195" | where {$_.enabled} | select-object -property name,distinguishedname,lastlogondate | | Sort-Object -Property lastlogondate,name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get domain admins
 $ReportName 	= "domainadmins"
 $Title 			= "Domain Administrators Report"
 $Subtitle 		= "Active accounts with Domain Administrator permissions"
-$reportdata 	= Get-ADGroupMember -Identity 'Domain Admins' | Get-ADObject -Properties Name,distinguishedname,objectclass,Description | select-object -property name,distinguishedname,objectclass,description
+$reportdata 	= Get-ADGroupMember -Identity 'Domain Admins' | Get-ADObject -Properties Name,distinguishedname,objectclass,Description | select-object -property name,distinguishedname,objectclass,description | Sort-Object -Property name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get server disk space 
@@ -155,7 +155,7 @@ $Subtitle 		= "Windows Services using a custom Log On As account. This report ma
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
 	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-	$reportdata = Get-WmiObject Win32_Service -ComputerName $Servers -Filter "not StartMode='Disabled'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartName | Where -Property StartName -notlike "" | Where -Property StartName -notmatch "LocalSystem" | Where -Property StartName -notmatch "LocalService" | Where -Property StartName -notmatch "NetworkService" 
+	$reportdata = Get-WmiObject Win32_Service -ComputerName $Servers -Filter "not StartMode='Disabled'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartName | Where -Property StartName -notlike "" | Where -Property StartName -notmatch "LocalSystem" | Where -Property StartName -notmatch "LocalService" | Where -Property StartName -notmatch "NetworkService" | Sort-Object -Property pscomputername
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 }else {
@@ -170,7 +170,7 @@ $Subtitle 		= "Windows Servers using static DNS addresses. This report may be em
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
 	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-	$reportdata = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -ComputerName $Servers -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue | where {$_.DNSServerSearchOrder -ne $null} | Select-Object PsComputerName,@{Name='Nameservers';Expression={[string]::join("; ", ($_.DnsServerSearchOrder))}}
+	$reportdata = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -ComputerName $Servers -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue | where {$_.DNSServerSearchOrder -ne $null} | Select-Object PsComputerName,@{Name='Nameservers';Expression={[string]::join("; ", ($_.DnsServerSearchOrder))}} | Sort-Object -Property pscomputername
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }else {
 Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
@@ -190,7 +190,7 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 $ReportName 	= "eospcs"
 $Title 			= "End-of-Support PCs Report"
 $Subtitle 		= "Computer accounts in Active Directory with end-of-support operating systems"
-$reportdata 	= Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19042|19041|18363|17763|17134|14393"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address
+$reportdata 	= Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19042|19041|18363|17763|17134|14393"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Sort-Object -Property operatingsystemversion,name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 Write-Progress -Id 0 -Activity "Collecting report data." -Status "Complete."
