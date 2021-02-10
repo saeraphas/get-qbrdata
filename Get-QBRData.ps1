@@ -123,7 +123,7 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 $ReportName 	= "inactivepcs"
 $Title 			= "Inactive Computers Report"
 $Subtitle 		= "Computer accounts that have not logged on to Active Directory in 180 days or more."
-$reportdata 	= search-adaccount -accountinactive -computersonly -timespan "195" | where {$_.enabled} | select-object -property name,distinguishedname,lastlogondate | | Sort-Object -Property lastlogondate,name
+$reportdata 	= search-adaccount -accountinactive -computersonly -timespan "195" | where {$_.enabled} | select-object -property name,distinguishedname,lastlogondate | Sort-Object -Property lastlogondate,name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get domain admins
