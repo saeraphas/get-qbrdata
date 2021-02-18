@@ -193,6 +193,14 @@ $Subtitle 		= "Computer accounts in Active Directory with end-of-support operati
 $reportdata 	= Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19042|19041|18363|17763|17134|14393"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Sort-Object -Property operatingsystemversion,name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
+#get EOL server list and last known IP address
+#note: win10 build list from here https://docs.microsoft.com/en-us/windows/release-information/
+$ReportName 	= "eosservers"
+$Title 			= "End-of-Support Servers Report"
+$Subtitle 		= "Server accounts in Active Directory with end-of-support operating systems"
+$reportdata 	= Get-ADComputer -Filter 'operatingsystem -like "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "NT|2000|2003|2008"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Sort-Object -Property operatingsystemversion,name
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+
 Write-Progress -Id 0 -Activity "Collecting report data." -Status "Complete."
 
 If ($zipoutput = $true){
