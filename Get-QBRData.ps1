@@ -198,7 +198,7 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 $ReportName 	= "eosservers"
 $Title 			= "End-of-Support Servers Report"
 $Subtitle 		= "Server accounts in Active Directory with end-of-support operating systems"
-$reportdata 	= Get-ADComputer -Filter 'operatingsystem -like "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "NT|2000|2003|2008"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Sort-Object -Property operatingsystemversion,name
+$reportdata 	= Get-ADComputer -Filter 'operatingsystem -like "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "Windows NT|2000|2003|2008"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Sort-Object -Property operatingsystemversion,name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 Write-Progress -Id 0 -Activity "Collecting report data." -Status "Complete."
