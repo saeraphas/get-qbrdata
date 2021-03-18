@@ -213,7 +213,8 @@ If ($zipoutput = $true){
 
 	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Adding files to ZIP."
 	#zip scratch to output using powershell v4 method
-	$destinationZipFileName = $outputpath + "QBRData.zip"
+#	$destinationZipFileName = $outputpath + "QBRData.zip"
+	$destinationZipFileName = $outputpath + $outputprefix + "report-bundle-" + $((get-date).tostring("yyyy-MM-dd")) + ".zip"
 	If (Test-Path -LiteralPath $destinationZipFileName){
 		Write-Warning "ZIP file $destinationZipFileName already exists. Replacing old file."
 		Remove-Item -Path $destinationZipFileName -Force
