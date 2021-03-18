@@ -107,7 +107,7 @@ Write-Progress -Id 0 -Activity "Collecting report data."
 # Get AD user accounts and logon dates
 $ReportName 	= "usersaudit"
 $Title 			= "User Account Audit Report"
-$Subtitle 		= "All enabled and disabled accounts in this domain. Last logon date is reported by a single domain controller and may not be 100% accurate."
+$Subtitle 		= "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
 $reportdata 	= Get-ADUser -Filter * -Properties Name,Description,lastlogondate,passwordlastset,enabled | select-object -property name,distinguishedname,lastlogondate,passwordlastset,enabled | Sort-Object -Property enabled,name,lastlogondate
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
@@ -129,14 +129,14 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 # Get domain admins
 $ReportName 	= "domainadmins"
 $Title 			= "Domain Administrators Report"
-$Subtitle 		= "Active accounts with Domain Administrator permissions"
+$Subtitle 		= "Accounts with Domain Administrator permissions."
 $reportdata 	= Get-ADGroupMember -Identity 'Domain Admins' | Get-ADObject -Properties Name,distinguishedname,objectclass,Description | select-object -property name,distinguishedname,objectclass,description | Sort-Object -Property name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get server disk space 
 $ReportName 	= "diskfreespace"
 $Title 			= "Server Storage Report"
-$Subtitle 		= "Hard drive space on servers"
+$Subtitle 		= "Storage utilizaion on Windows Servers."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
@@ -150,7 +150,7 @@ Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby
 # Get service accounts 
 $ReportName 	= "serviceaccounts"
 $Title 			= "Service Accounts Report"
-$Subtitle 		= "Windows Services using a custom Log On As account. This report may be empty."
+$Subtitle 		= "Windows Services using a custom Log On As account. </br>This report may be empty."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
@@ -165,7 +165,7 @@ Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby
 # Get static nameservers on server interfaces
 $ReportName 	= "nameservers"
 $Title 			= "Static DNS servers"
-$Subtitle 		= "Windows Servers using static DNS addresses. This report may be empty."
+$Subtitle 		= "DNS server addresses in use on Windows Servers. </br>This report may be empty."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
@@ -180,7 +180,7 @@ Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby
 # this will error out on groups over 5000 users until I rewrite it to use Get-ADUser -LDAPFilter
 $ReportName 	= "domaingroups"
 $Title 			= "Active Directory Groups Report"
-$Subtitle 		= "Groups specific to this organization and their members. Default Built-in groups are excluded."
+$Subtitle 		= "Groups specific to this organization and their members. </br>Default Built-in groups are excluded."
 $Groups 		= Get-ADGroup -Filter { GroupCategory -eq "Security" -and GroupScope -eq "Global"  } -Properties isCriticalSystemObject | Where-Object { !($_.IsCriticalSystemObject)}
 $reportdata 	= foreach( $Group in $Groups ){Get-ADGroupMember -Identity $Group | foreach {[pscustomobject]@{GroupName = $Group.Name;Name = $_.Name}}}
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
@@ -189,7 +189,7 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 #note: win10 build list from here https://docs.microsoft.com/en-us/windows/release-information/
 $ReportName 	= "eospcs"
 $Title 			= "End-of-Support PCs Report"
-$Subtitle 		= "Computer accounts in Active Directory with end-of-support operating systems including Win10 feature updates."
+$Subtitle 		= "Computer accounts in Active Directory with end-of-support operating systems. </br>Old Win10 builds and feature updates are also included."
 $reportdata 	= Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19042|19041|18363|17763|17134|14393"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Sort-Object -Property operatingsystemversion,name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
