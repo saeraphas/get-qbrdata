@@ -53,14 +53,12 @@ h1 {
   color: blue;
   font-family: verdana;
   font-size: 150%;
-  line-height: .5em;
 }
 h2 {
   padding-left: 2em;
   color: blue;
   font-family: verdana;
   font-size: 100%;
-  line-height: .5em;
 }
 p {
   color: gray;
