@@ -222,7 +222,7 @@ if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
 #	$reportdata = Get-Cert $Servers -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | format-list -property thumbprint,NotAfter,Subject,Issuer
 	$reportdata = foreach( $Server in $Servers ) {
-	try {Get-Cert "$Server" -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | format-list -property thumbprint,NotAfter,Subject,Issuer}
+	try {Get-Cert "$Server" -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | Select-Object -property thumbprint,NotAfter,Subject,Issuer}
 	catch {Write-Warning "An error occurred collecting $ReportName data from $Server."}
 	}
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
@@ -263,7 +263,7 @@ If ($zipoutput = $true){
 	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Creating ZIP working directory."
 	$scratchpath = $outputpath + "scratch\"
 	If (!(Test-Path -LiteralPath $scratchpath)){New-Item -Path $scratchpath -ItemType Directory -ErrorAction Stop | Out-Null}
-	Get-ChildItem -Path $outputpath $outputprefix*.* -Exclude *.zip | Move-Item -Destination $scratchpath 
+	Get-ChildItem -Path $outputpath $outputprefix*.* | where { ! $_.PSIsContainer } |Where-Object { $_.Extension -ne ".zip"} | Move-Item -Destination $scratchpath 
 
 	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Adding files to ZIP."
 	#zip scratch to output using powershell v4 method
