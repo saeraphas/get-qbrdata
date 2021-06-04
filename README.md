@@ -61,6 +61,7 @@ Douglas Hammond (douglas@douglashammond.com)
 | 2020-12-10 | Added check for empty report data to prevent console error and 0-byte output files. |
 | 2021-01-19 | Added nameserver report.|
 | 2021-01-21 | Moved changelog and some remarks from header to README.md |
+| 2021-06-04 | Added share and cert reports |
 
 ### ROADMAP:
 - 365 account assigned licenses

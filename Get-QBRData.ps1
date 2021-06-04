@@ -111,6 +111,15 @@ function New-Report(){
 	$reportdata | export-csv "$reportoutput.csv" -notypeinformation
 }
 
+function Get-Cert( $computer=$env:computername ){
+    $ro=[System.Security.Cryptography.X509Certificates.OpenFlags]"ReadOnly"
+    $lm=[System.Security.Cryptography.X509Certificates.StoreLocation]"LocalMachine"
+#    $store=new-object System.Security.Cryptography.X509Certificates.X509Store("\\$computer\root",$lm)
+    $store=new-object System.Security.Cryptography.X509Certificates.X509Store("\\$computer\My",$lm)
+    $store.Open($ro)
+	$store.Certificates
+}
+
 If(!(test-path $outputpath)){New-Item -ItemType Directory -Force -Path $outputpath }
 
 import-module activedirectory
@@ -189,6 +198,34 @@ if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
 }
 
+# Get static nameservers on server interfaces
+$ReportName 	= "fileshares"
+$Title 			= "Network shares"
+$Subtitle 		= "SMB shares on Windows Servers."
+# but not if we're the local system account
+if ($reportingby -ne "NT AUTHORITY\SYSTEM")
+{
+	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$reportdata = Get-WmiObject -Class Win32_Share -ComputerName $Servers -ErrorAction SilentlyContinue
+	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+}else {
+Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
+}
+
+# Get static nameservers on server interfaces
+$ReportName 	= "sslcertificates"
+$Title 			= "SSL Certificates"
+$Subtitle 		= "Non-self-signed SSL Certificates expiring this year. This report may be empty. "
+# but not if we're the local system account
+if ($reportingby -ne "NT AUTHORITY\SYSTEM")
+{
+	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$reportdata = Get-Cert $Servers -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | format-list -property thumbprint,NotAfter,Subject,Issuer
+	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+}else {
+Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
+}
+
 # Get custom Active Directory Groups and their users 
 # this will error out on groups over 5000 users until I rewrite it to use Get-ADUser -LDAPFilter
 $ReportName 	= "domaingroups"
@@ -222,7 +259,7 @@ If ($zipoutput = $true){
 	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Creating ZIP working directory."
 	$scratchpath = $outputpath + "scratch\"
 	If (!(Test-Path -LiteralPath $scratchpath)){New-Item -Path $scratchpath -ItemType Directory -ErrorAction Stop | Out-Null}
-	Get-ChildItem -Path $outputpath $outputprefix*.* | Move-Item -Destination $scratchpath 
+	Get-ChildItem -Path $outputpath $outputprefix*.* -Exclude *.zip | Move-Item -Destination $scratchpath 
 
 	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Adding files to ZIP."
 	#zip scratch to output using powershell v4 method
