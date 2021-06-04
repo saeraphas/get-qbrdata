@@ -198,7 +198,7 @@ if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
 }
 
-# Get static nameservers on server interfaces
+# Get file and print shares 
 $ReportName 	= "fileshares"
 $Title 			= "Network shares"
 $Subtitle 		= "SMB shares on Windows Servers."
@@ -206,25 +206,25 @@ $Subtitle 		= "SMB shares on Windows Servers."
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
 	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-	$reportdata = Get-WmiObject -Class Win32_Share -ComputerName $Servers -ErrorAction SilentlyContinue
+	$reportdata = Get-WmiObject -Class Win32_Share -ComputerName $Servers -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, Path, Description | Sort-Object -Property pscomputername 
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }else {
 Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
 }
 
-# Get static nameservers on server interfaces
-$ReportName 	= "sslcertificates"
-$Title 			= "SSL Certificates"
-$Subtitle 		= "Non-self-signed SSL Certificates expiring this year. This report may be empty. "
+# Get SSL certificates
+#$ReportName 	= "sslcertificates"
+#$Title 			= "SSL Certificates"
+#$Subtitle 		= "Non-self-signed SSL Certificates expiring this year. This report may be empty. "
 # but not if we're the local system account
-if ($reportingby -ne "NT AUTHORITY\SYSTEM")
-{
-	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-	$reportdata = Get-Cert $Servers -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | format-list -property thumbprint,NotAfter,Subject,Issuer
-	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
-}else {
-Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
-}
+#if ($reportingby -ne "NT AUTHORITY\SYSTEM")
+#{
+#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+#	$reportdata = Get-Cert $Servers -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | format-list -property thumbprint,NotAfter,Subject,Issuer
+#	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+#}else {
+#Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
+#}
 
 # Get custom Active Directory Groups and their users 
 # this will error out on groups over 5000 users until I rewrite it to use Get-ADUser -LDAPFilter
