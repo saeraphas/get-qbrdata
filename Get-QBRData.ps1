@@ -213,18 +213,22 @@ Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby
 }
 
 # Get SSL certificates
-#$ReportName 	= "sslcertificates"
-#$Title 			= "SSL Certificates"
-#$Subtitle 		= "Non-self-signed SSL Certificates expiring this year. This report may be empty. "
+$ReportName 	= "sslcertificates"
+$Title 			= "SSL Certificates"
+$Subtitle 		= "Non-self-signed SSL Certificates expiring this year. This report may be empty. "
 # but not if we're the local system account
-#if ($reportingby -ne "NT AUTHORITY\SYSTEM")
-#{
-#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+if ($reportingby -ne "NT AUTHORITY\SYSTEM")
+{
+	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
 #	$reportdata = Get-Cert $Servers -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | format-list -property thumbprint,NotAfter,Subject,Issuer
-#	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
-#}else {
-#Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
-#}
+	$reportdata = foreach( $Server in $Servers ) {
+	try {Get-Cert "$Server" -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | format-list -property thumbprint,NotAfter,Subject,Issuer}
+	catch {Write-Warning "An error occurred collecting $ReportName data from $Server."}
+	}
+	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+}else {
+Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
+}
 
 # Get custom Active Directory Groups and their users 
 # this will error out on groups over 5000 users until I rewrite it to use Get-ADUser -LDAPFilter
