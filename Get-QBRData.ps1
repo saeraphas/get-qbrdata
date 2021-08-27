@@ -122,8 +122,6 @@ function Get-Cert( $computer=$env:computername ){
 
 function Get-ServerStatus (){
 	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-	$ServersOnline = @()
-	$ServersOffline = @()
 	$TimeoutMillisec = 2000
 	
 	Foreach ($Server in $Servers){
@@ -173,7 +171,9 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 $ReportName 	= "inactiveservers"
 $Title 			= "Offline Servers Report"
 $Subtitle 		= "Servers that do not respond to ICMP or SMB. This report may be empty."
-Get-OnlineServers
+$ServersOnline = @()
+$ServersOffline = @()
+Get-ServerStatus
 $reportdata 	= $ServersOffline | Select-Object -Property Server, PingStatus, SMBStatus | Sort-Object -Property Server
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
@@ -280,7 +280,7 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 $ReportName 	= "eospcs"
 $Title 			= "End-of-Support PCs Report"
 $Subtitle 		= "Computer accounts in Active Directory with end-of-support operating systems. </br>Old Win10 builds and feature updates are also included."
-$reportdata 	= Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19042|19041|18363|17763|17134|14393"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Sort-Object -Property operatingsystemversion,name
+$reportdata 	= Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Where {$_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19044|19043|19042|19041"} | Select-Object -Property Name,Operatingsystem,OperatingSystemVersion,LastLogonDate,IPv4Address | Sort-Object -Property operatingsystemversion,name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 #get EOL server list and last known IP address
