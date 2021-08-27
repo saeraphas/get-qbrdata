@@ -120,32 +120,6 @@ function Get-Cert( $computer=$env:computername ){
 	$store.Certificates
 }
 
-function Get-ServerStatus (){
-	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-	$TimeoutMillisec = 2000
-	
-	Foreach ($Server in $Servers){
-		$PingStatus = Get-WmiObject -Class Win32_PingStatus -Filter "(Address='$server') and timeout=$TimeoutMillisec"
-		$SMBStatus = start-job {test-path -path "\\$args\c$"} -ArgumentList $Server | wait-job -timeout 1 | Receive-Job
-		# Construct an object
-		$myobj = "" | Select "Server", "PingStatus", "SMBStatus"
-	
-		# Fill the object
-		$myobj.Server = $Server
-		$myobj.PingStatus = $PingStatus.StatusCode
-		$myobj.SMBStatus = $SMBStatus
-	
-		# Add the object to the out-array
-		If (($PingStatus.StatusCode -eq 0) -or ($SMBStatus -eq $true)) {$ServersOnline += $myobj} else {$ServersOffline += $myobj}
-	
-		# Clear the object
-		$myobj = $null
-		$pingstatus = $null
-		$smbstatus = $null
-	}
-}
-
-
 If(!(test-path $outputpath)){New-Item -ItemType Directory -Force -Path $outputpath }
 
 import-module activedirectory
@@ -173,7 +147,28 @@ $Title 			= "Offline Servers Report"
 $Subtitle 		= "Servers that do not respond to ICMP or SMB. This report may be empty."
 $ServersOnline = @()
 $ServersOffline = @()
-Get-ServerStatus
+$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+$TimeoutMillisec = 2000
+
+Foreach ($Server in $Servers){
+	$PingStatus = Get-WmiObject -Class Win32_PingStatus -Filter "(Address='$server') and timeout=$TimeoutMillisec"
+	$SMBStatus = start-job {test-path -path "\\$args\c$"} -ArgumentList $Server | wait-job -timeout 1 | Receive-Job
+	# Construct an object
+	$myobj = "" | Select "Server", "PingStatus", "SMBStatus"
+
+	# Fill the object
+	$myobj.Server = $Server
+	$myobj.PingStatus = $PingStatus.StatusCode
+	$myobj.SMBStatus = $SMBStatus
+
+	# Add the object to the out-array
+	If (($PingStatus.StatusCode -eq 0) -or ($SMBStatus -eq $true)) {$ServersOnline += $myobj} else {$ServersOffline += $myobj}
+
+	# Clear the object
+	$myobj = $null
+	$pingstatus = $null
+	$smbstatus = $null
+}
 $reportdata 	= $ServersOffline | Select-Object -Property Server, PingStatus, SMBStatus | Sort-Object -Property Server
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
