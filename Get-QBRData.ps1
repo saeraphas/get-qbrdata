@@ -148,7 +148,7 @@ $Subtitle 		= "Servers that do not respond to ICMP or SMB. This report may be em
 $ServersOnline = @()
 $ServersOffline = @()
 $Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-$TimeoutMillisec = 2000
+$TimeoutMillisec = 3000
 
 Foreach ($Server in $Servers){
 	$PingStatus = Get-WmiObject -Class Win32_PingStatus -Filter "(Address='$server') and timeout=$TimeoutMillisec"
