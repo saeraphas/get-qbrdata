@@ -111,7 +111,7 @@ function New-Report(){
 			$reportdata += $row
 		}
 	$reportdata | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath "$reportoutput.html"
-#	$reportdata | export-csv "$reportoutput.csv" -notypeinformation
+
 	if ($skipExcel -ne $true) {
 		$reportdata | Export-Excel `
 		-Path $XLSreport `
@@ -121,6 +121,8 @@ function New-Report(){
 		-Autosize `
 		-FreezePane 2 `
 		-Autofilter `
+	} else {
+		$reportdata | export-csv "$reportoutput.csv" -notypeinformation		
 	}
 $reportdata = $null
 }
