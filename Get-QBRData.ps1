@@ -140,8 +140,9 @@ If(!(test-path $outputpath)){New-Item -ItemType Directory -Force -Path $outputpa
 
 #try to install required modules
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-If (!(Get-Module -ListAvailable -Name activedirectory)) {try {Install-Module activedirectory -scope CurrentUser -Force} catch {Write-Error "An error occurred importing the ActiveDirectory Powershell module. Unable to continue."; exit}}
-If (!(Get-Module -ListAvailable -Name ImportExcel)) {try {Install-Module ImportExcel -scope CurrentUser -Force} catch {Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true}}
+If (!(Get-Module -ListAvailable -Name activedirectory)) {try {Install-Module activedirectory -scope CurrentUser -Force} catch {Write-Error "An error occurred adding the ActiveDirectory Powershell module. Unable to continue."; exit}}
+If (!(Get-Module -ListAvailable -Name NuGet)) {try {Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force} catch {Write-Warning "An error occurred adding the NuGet provider."}}
+If (!(Get-Module -ListAvailable -Name ImportExcel)) {try {Install-Module ImportExcel -scope CurrentUser -Force} catch {Write-Warning "An error occurred adding the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true}}
 
 #bail out if we can't load them
 If (Get-Module -ListAvailable -Name activedirectory) {try {import-module activedirectory} catch {Write-Error "An error occurred importing the ActiveDirectory Powershell module. Unable to continue."; exit}}
