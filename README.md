@@ -49,7 +49,7 @@ Douglas Hammond (douglas@douglashammond.com)
 | Date | Note |
 | --- | --- |
 | 2020-08-28 | Added script header for first github version.|
-| 2020-09-02 | 	Added check for NT AUTHORITY\SYSTEM to prevent ugly errors on storage report.|
+| 2020-09-02 | Added check for NT AUTHORITY\SYSTEM to prevent ugly errors on storage report.|
 | 2020-09-02 | Added check to remove old output ZIP before creating a new one. |
 | 2020-09-14 | Added services report, Expanded customization of HTML header |
 | 2020-09-16 | Fixed services report, output works as intended now. |
@@ -62,6 +62,9 @@ Douglas Hammond (douglas@douglashammond.com)
 | 2021-01-19 | Added nameserver report.|
 | 2021-01-21 | Moved changelog and some remarks from header to README.md |
 | 2021-06-04 | Added share and cert reports |
+| 2021-10-29 | Revised AD group report to support 5000+ users |
+| 2021-11-01 | Revised server reports to only attempt data collection from online servers |
+| 2021-11-02 | Replaced CSV output type with Excel |
 
 ### ROADMAP:
 - 365 account assigned licenses

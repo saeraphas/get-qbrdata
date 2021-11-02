@@ -17,10 +17,12 @@
 
 #Requires -Version 4.0
 #Requires -Module activedirectory
+Write-Progress -Id 0 -Activity "Initializing variables."
 
 $contact 		= "Nexigen Communications, LLC"
 $contactlink 	= "https://www.nexigen.com"
-$contactlogo 	= "https://www.nexigen.com/wp-content/themes/nexigen/library/images/nexigen-logo.svg"
+#$contactlogo 	= "https://www.nexigen.com/wp-content/themes/nexigen/library/images/nexigen-logo.svg"
+$contactlogo 	= "https://www.nexigen.com/files/2021/09/logo-min.png"
 $contactmail 	= "mailto:help@nexigen.com"
 $date 			= (Get-Date -DisplayHint Date).DateTime | Out-String
 $outputpath 	= "C:\Nexigen\"
@@ -101,6 +103,7 @@ function New-Report(){
 	Write-Progress -Id 0 -Activity "Collecting report data." -CurrentOperation "Collecting $Title."
 	$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
 	$ReportOutput = $outputpath + $outputprefix + $ReportName
+	$XLSreport = $outputpath + $outputprefix + "combined.xlsx"
 	if (!$reportdata){
 		$reportdata = @()
 			$row = New-Object PSObject
@@ -108,7 +111,18 @@ function New-Report(){
 			$reportdata += $row
 		}
 	$reportdata | ConvertTo-Html -Title "$title" -PreContent $HTMLPrefixed -post $HTMLPost | out-file -filepath "$reportoutput.html"
-	$reportdata | export-csv "$reportoutput.csv" -notypeinformation
+#	$reportdata | export-csv "$reportoutput.csv" -notypeinformation
+	if ($skipExcel -ne $true) {
+		$reportdata | Export-Excel `
+		-Path $XLSreport `
+		-WorkSheetname "$title" `
+		-ClearSheet `
+		-BoldTopRow `
+		-Autosize `
+		-FreezePane 2 `
+		-Autofilter `
+	}
+$reportdata = $null
 }
 
 function Get-Cert( $computer=$env:computername ){
@@ -120,9 +134,18 @@ function Get-Cert( $computer=$env:computername ){
 	$store.Certificates
 }
 
+Write-Progress -Id 0 -Activity "Checking prerequisites."
+
 If(!(test-path $outputpath)){New-Item -ItemType Directory -Force -Path $outputpath }
 
-import-module activedirectory
+#try to install required modules
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+If (!(Get-Module -ListAvailable -Name activedirectory)) {try {Install-Module activedirectory -scope CurrentUser -Force} catch {Write-Error "An error occurred importing the ActiveDirectory Powershell module. Unable to continue."; exit}}
+If (!(Get-Module -ListAvailable -Name ImportExcel)) {try {Install-Module ImportExcel -scope CurrentUser -Force} catch {Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true}}
+
+#bail out if we can't load them
+If (Get-Module -ListAvailable -Name activedirectory) {try {import-module activedirectory} catch {Write-Error "An error occurred importing the ActiveDirectory Powershell module. Unable to continue."; exit}}
+If (Get-Module -ListAvailable -Name ImportExcel) {try {import-module ImportExcel} catch {Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true}}
 
 Write-Progress -Id 0 -Activity "Collecting report data."
 
@@ -136,8 +159,11 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 # Get inactive users 
 $ReportName 	= "inactiveusers"
 $Title 			= "Inactive Users Report"
-$Subtitle 		= "User accounts that have not logged on to Active Directory in ~180 days or more."
-$reportdata 	= search-adaccount -accountinactive -usersonly -timespan "195" | where {$_.enabled} | select-object -property name,distinguishedname,lastlogondate | Sort-Object -Property lastlogondate,name
+$inactivitythreshold = 365
+$Subtitle 		= "User accounts that have not logged on to Active Directory in ~$($inactivitythreshold) days or more."
+$inactivitypad 	= $inactivitythreshold + 15 #pad this date by 15 days because this attrtibute is only replicated periodically
+$inactivitydate = (get-date).AddDays(-$inactivitypad) 
+$reportdata		= Get-ADUser -Filter {(LastLogonDate -lt $inactivitydate) -and (enabled -eq $true)} -properties LastLogonDate,passwordlastset | Select-Object Name,LastLogonDate,passwordlastset | Sort-Object -Property name,lastlogondate
 $reportoutput 	= $outputpath + $outputprefix + "inactiveusers.$outputtype"
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
@@ -193,7 +219,8 @@ $Subtitle 		= "Storage utilizaion on Windows Servers."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
-	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$Servers 	= $ServersOnline | select -ExpandProperty Server
 	$reportdata = Get-WmiObject Win32_LogicalDisk -ComputerName $Servers -Filter "DriveType='3'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, DeviceID, @{N="Disk Size (GB) ";e={[math]::Round($($_.Size) / 1073741824,2)}}, @{N="Free Space (GB)";e={[math]::Round($($_.FreeSpace) / 1073741824,2)}}, @{N="Used Space (%)";e={[math]::Round($($_.Size - $_.FreeSpace) / $_.Size * 100,1)}}, @{N="Used Space (GB)";e={[math]::Round($($_.Size - $_.FreeSpace) / 1073741824,2)}} 
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }else {
@@ -207,7 +234,8 @@ $Subtitle 		= "Windows Services using a custom Log On As account. </br>This repo
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
-	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$Servers 	= $ServersOnline | select -ExpandProperty Server
 	$reportdata = Get-WmiObject Win32_Service -ComputerName $Servers -Filter "not StartMode='Disabled'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartName | Where -Property StartName -notlike "" | Where -Property StartName -notmatch "LocalSystem" | Where -Property StartName -notmatch "LocalService" | Where -Property StartName -notmatch "NetworkService" | Sort-Object -Property pscomputername
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
@@ -222,7 +250,8 @@ $Subtitle 		= "DNS server addresses in use on Windows Servers. </br>This report 
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
-	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$Servers 	= $ServersOnline | select -ExpandProperty Server
 	$reportdata = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -ComputerName $Servers -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue | where {$_.DNSServerSearchOrder -ne $null} | Select-Object PsComputerName,@{Name='Nameservers';Expression={[string]::join("; ", ($_.DnsServerSearchOrder))}} | Sort-Object -Property pscomputername
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }else {
@@ -236,7 +265,8 @@ $Subtitle 		= "SMB shares on Windows Servers."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
-	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$Servers 	= $ServersOnline | select -ExpandProperty Server
 	$reportdata = Get-WmiObject -Class Win32_Share -ComputerName $Servers -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, Path, Description | Sort-Object -Property pscomputername 
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }else {
@@ -250,11 +280,24 @@ $Subtitle 		= "Non-self-signed SSL Certificates expiring this year. This report 
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
-	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$Servers 	= $ServersOnline | select -ExpandProperty Server
 #	$reportdata = Get-Cert $Servers -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | format-list -property thumbprint,NotAfter,Subject,Issuer
-	$reportdata = foreach( $Server in $Servers ) {
-	try {Get-Cert "$Server" -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | Select-Object -property thumbprint,NotAfter,Subject,Issuer}
-	catch {Write-Warning "An error occurred collecting $ReportName data from $Server."}
+	$reportdata = @()
+	foreach( $Server in $Servers ) {
+		$certdata = $null
+		try {$certdata = Get-Cert "$Server" -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | Select-Object -property thumbprint,NotAfter,Subject,Issuer} catch {Write-Warning "An error occurred collecting $ReportName data from $Server."; Continue}
+		$certHash=$null
+		$certHash=@{
+			'Server' 	= $Server
+			'Subject' 	= ($certdata.subject | Out-String).Trim()
+			'Expiry' 	= ($certdata.notafter | Out-String).Trim()
+			'Thumbprint'= ($certdata.thumbprint | Out-String).Trim()
+			'Issuer' 	= ($certdata.issuer | Out-String).Trim()
+			}
+		$certObject = $null
+		$certObject = New-Object PSObject -Property $certHash
+		$reportdata += $certObject
 	}
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }else {
@@ -266,8 +309,9 @@ Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby
 $ReportName 	= "domaingroups"
 $Title 			= "Active Directory Groups Report"
 $Subtitle 		= "Groups specific to this organization and their members. </br>Default Built-in groups are excluded."
-$Groups 		= Get-ADGroup -Filter { GroupCategory -eq "Security" -and GroupScope -eq "Global"  } -Properties isCriticalSystemObject | Where-Object { !($_.IsCriticalSystemObject)}
-$reportdata 	= foreach( $Group in $Groups ){Get-ADGroupMember -Identity $Group | foreach {[pscustomobject]@{GroupName = $Group.Name;Name = $_.Name}}}
+$Groups 		= Get-ADGroup -Filter { GroupCategory -eq "Security" -and GroupScope -eq "Global"  } -Properties isCriticalSystemObject,distinguishedname | Where-Object { !($_.IsCriticalSystemObject)} | select-object DistinguishedName,Name
+#$reportdata 	= foreach( $Group in $Groups ){Get-ADGroupMember -Identity $Group | foreach {[pscustomobject]@{GroupName = $Group.Name;Name = $_.Name}}}
+$reportdata 	= foreach( $Group in $Groups ){Get-ADUser -LDAPFilter "(&(objectCategory=user)(memberof=$($group.distinguishedname)))" | foreach {[pscustomobject]@{GroupName = $Group.Name;Name = $_.Name}}}
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 #get EOL PC list and last known IP address
