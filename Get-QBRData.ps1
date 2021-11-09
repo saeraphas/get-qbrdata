@@ -279,7 +279,7 @@ Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby
 # Get SSL certificates
 $ReportName 	= "sslcertificates"
 $Title 			= "SSL Certificates"
-$Subtitle 		= "Non-self-signed SSL Certificates expiring this year. This report may be empty. "
+$Subtitle 		= "SSL Certificates on servers in this domain. This report may be empty. "
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 {
@@ -288,20 +288,25 @@ if ($reportingby -ne "NT AUTHORITY\SYSTEM")
 #	$reportdata = Get-Cert $Servers -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | format-list -property thumbprint,NotAfter,Subject,Issuer
 	$reportdata = @()
 	foreach( $Server in $Servers ) {
-		$certdata = $null
-		try {$certdata = Get-Cert "$Server" -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | Select-Object -property thumbprint,NotAfter,Subject,Issuer} catch {Write-Warning "An error occurred collecting $ReportName data from $Server."; Continue}
-		$certHash=$null
-		$certHash=@{
-			'Server' 	= $Server
-			'Subject' 	= ($certdata.subject | Out-String).Trim()
-			'Expiry' 	= ($certdata.notafter | Out-String).Trim()
-			'Thumbprint'= ($certdata.thumbprint | Out-String).Trim()
-			'Issuer' 	= ($certdata.issuer | Out-String).Trim()
-			}
-		$certObject = $null
-		$certObject = New-Object PSObject -Property $certHash
-		$reportdata += $certObject
+		$certificates = $null
+#		try {$certificates = Get-Cert "$Server" -ErrorAction SilentlyContinue | ?{$_.Subject -ne $_.Issuer} | ?{$_.NotAfter -gt (Get-Date)} | ?{$_.NotAfter -lt (Get-Date).AddDays(365)} | Select-Object -property thumbprint,NotAfter,Subject,Issuer} catch {Write-Warning "An error occurred collecting $ReportName data from $Server."; Continue}
+		try {$certificates = Get-Cert "$Server" -ErrorAction SilentlyContinue | Select-Object -property Subject,Issuer,thumbprint,NotAfter} catch {Write-Warning "An error occurred collecting $ReportName data from $Server."; Continue}
+		foreach ($certificate in $certificates){
+			$certHash=$null
+			$certHash=[ordered]@{
+				'Server' 	= $Server
+				'Subject' 	= ($certificate.subject | Out-String).Trim()
+				'ExpiryDate' 	= $certificate.notafter
+				'ExpiryDays' 	= (New-Timespan -Start $(Get-Date) -End $($certificate.notafter)).Days
+				'Thumbprint'= ($certificate.thumbprint | Out-String).Trim()
+				'Issuer' 	= ($certificate.issuer | Out-String).Trim()
+				}
+			$certObject = $null
+			$certObject = New-Object PSObject -Property $certHash
+			$reportdata += $certObject
+		}	
 	}
+	$reportdata = $reportdata | sort-object -Property ExpiryDays
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }else {
 Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
