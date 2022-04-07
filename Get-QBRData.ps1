@@ -159,7 +159,7 @@ Write-Progress -Id 0 -Activity "Collecting report data."
 $ReportName = "usersaudit"
 $Title = "User Account Audit Report"
 $Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
-$reportdata = Get-ADUser -Filter * -Properties Name, Description, lastlogondate, passwordlastset, enabled | select-object -property name, distinguishedname, lastlogondate, passwordlastset, enabled | Sort-Object -Property enabled, name, lastlogondate
+$reportdata = Get-ADUser -Filter * -Properties Name, Description, lastlogondate, passwordlastset, enabled | select-object -property name, distinguishedname, lastlogondate, @{N='Days Since Last Logon'; E={(new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days}}, passwordlastset, enabled | Sort-Object -Property enabled, name, lastlogondate
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get inactive users 
