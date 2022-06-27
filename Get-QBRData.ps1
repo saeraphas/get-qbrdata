@@ -331,7 +331,7 @@ $ReportName = "emailaliases"
 $Title = "Mailbox Address Report"
 $Subtitle = "Mailboxes in this organization and their aliases. </br>This report is in testing."
 $outobject = @()
-$mailboxes = Get-ADUser -Properties DisplayName,ProxyAddresses -Filter {ProxyAddresses -like '*'} -ResultSize Unlimited 
+$mailboxes = Get-ADUser -Properties DisplayName,ProxyAddresses -Filter {ProxyAddresses -like '*'}
 ForEach ($mailbox in $mailboxes) {
 	$mailboxHash = $null
 	$mailboxHash = [ordered]@{
