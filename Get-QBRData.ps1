@@ -336,8 +336,8 @@ ForEach ($mailbox in $mailboxes) {
 	$mailboxHash = $null
 	$mailboxHash = [ordered]@{
 		"Display Name" = $mailbox.DisplayName
-		"Email Address" = ($mailbox.ProxyAddresses | Where-Object {$_ -CLIKE "SMTP:*"} | Select-Object -ExpandProperty AddressString)
-		"Email Aliases" = ($mailbox.ProxyAddresses | Where-Object {$_ -CLIKE "smtp:*"} | Select-Object -ExpandProperty AddressString) -join [Environment]::NewLine
+		"Email Address" = ($mailbox.ProxyAddresses | Where-Object {$_ -CLIKE "SMTP:*"}) -Replace "SMTP:",""
+		"Email Aliases" = (($mailbox.ProxyAddresses | Where-Object {$_ -CLIKE "smtp:*"}) -Replace "smtp:","") -join [Environment]::NewLine
 	}
 	$resultObject = New-Object PSObject -Property $mailboxHash
 	$outobject += $resultObject
