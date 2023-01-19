@@ -346,11 +346,13 @@ $reportdata = $outobject | Sort-Object -Property "Display Name"
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 #get EOL PC list and last known IP address
-#note: win10 build list from here https://docs.microsoft.com/en-us/windows/release-information/
+#note: win10 build list from here https://learn.microsoft.com/en-us/windows/release-health/release-information
 $ReportName = "eospcs"
 $Title = "End-of-Support PCs Report"
 $Subtitle = "Computer accounts in Active Directory with end-of-support operating systems. </br>Old Win10 builds and feature updates are also included."
-$reportdata = Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Where-Object { $_.OperatingSystem -imatch "Windows 10|Windows Vista|Windows XP|95|94|Windows 8|2000|2003|Windows NT|Windows 7" -and $_.OperatingSystemVersion -inotmatch "6.3.9600|6.1.7601|19044|19043|19042|19041" } | Select-Object -Property Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Sort-Object -Property operatingsystemversion, name
+$workstationosnames = "Windows 11|Windows 10|Windows 8|Windows 7|Windows Vista|Windows XP|2000|95|NT"
+$workstationossupportedbuilds = "22621|22000|19045|19044|19043|19042|19041|17763|14393"
+$reportdata = Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Where-Object { $_.OperatingSystem -imatch $workstationosnames -and $_.OperatingSystemVersion -inotmatch $workstationossupportedbuilds } | Select-Object -Property Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Sort-Object -Property operatingsystemversion, name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 #get EOL server list and last known IP address
@@ -358,7 +360,9 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 $ReportName = "eosservers"
 $Title = "End-of-Support Servers Report"
 $Subtitle = "Server accounts in Active Directory with end-of-support operating systems"
-$reportdata = Get-ADComputer -Filter 'operatingsystem -like "*server*" -and enabled -eq "true"' -Properties Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Where-Object { $_.OperatingSystem -imatch "Windows NT|2000|2003|2008" } | Select-Object -Property Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Sort-Object -Property operatingsystemversion, name
+$serverosnames = "2022|2019|2016|2012|2008|2003|2000|Windows NT"
+$serverossupportedbuilds = "20348|17763|14393|9600"
+$reportdata = Get-ADComputer -Filter 'operatingsystem -like "*server*" -and enabled -eq "true"' -Properties Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Where-Object { $_.OperatingSystem -imatch $serverosnames -and $_.OperatingSystemVersion -inotmatch $serverossupportedbuilds } | Select-Object -Property Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Sort-Object -Property operatingsystemversion, name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 Write-Progress -Id 0 -Activity "Collecting report data." -Status "Complete."
