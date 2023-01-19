@@ -25,6 +25,9 @@ param([switch]$NoZip)
 
 Write-Progress -Id 0 -Activity "Initializing variables."
 
+#get NETBIOS domain name
+#(gwmi Win32_NTDomain).DomainName
+
 $contact = "Nexigen Communications, LLC"
 $contactlink = "https://www.nexigen.com"
 $contactlogo = "https://149698627.v2.pressablecdn.com/wp-content/uploads/2021/12/Logo-White-BG.png"
