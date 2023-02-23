@@ -151,10 +151,13 @@ If (!(test-path $outputpath)) { New-Item -ItemType Directory -Force -Path $outpu
 
 #try to install required modules
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-If (!(Get-Module -ListAvailable -Name activedirectory)) { try { Install-Module activedirectory -scope CurrentUser -Force } catch { Write-Error "An error occurred adding the ActiveDirectory Powershell module. Unable to continue."; exit } }
+
+Try { Get-Module -ListAvailable -Name activedirectory -ErrorAction Stop } catch {
+	try { Install-Module activedirectory -scope CurrentUser -Force -ErrorAction Stop } catch { Write-Error "An error occurred adding the ActiveDirectory Powershell module. Unable to continue."; exit } 
+}
 #try to install optional modules
-If (!(Get-Module -ListAvailable -Name ImportExcel)){
-	If (!(Get-PackageProvider -ListAvailable -Name NuGet)) { try { Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force } catch { Write-Warning "An error occurred adding the NuGet provider." } }
+If (!(Get-Module -ListAvailable -Name ImportExcel)) {
+	Try { Get-PackageProvider -ListAvailable -Name NuGet -ErrorAction Stop } catch { try { Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force } catch { Write-Warning "An error occurred adding the NuGet provider." } }
 	try { Install-Module ImportExcel -scope CurrentUser -Force } catch { Write-Warning "An error occurred adding the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true }
 }
 #bail out if we can't load them
@@ -167,7 +170,7 @@ Write-Progress -Id 0 -Activity "Collecting report data."
 $ReportName = "usersaudit"
 $Title = "User Account Audit Report"
 $Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
-$reportdata = Get-ADUser -Filter * -Properties Name, Description, lastlogondate, passwordlastset, enabled | select-object -property name, distinguishedname, lastlogondate, @{N='Days Since Last Logon'; E={(new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days}}, passwordlastset, enabled | Sort-Object -Property enabled, name, lastlogondate
+$reportdata = Get-ADUser -Filter * -Properties Name, Description, lastlogondate, passwordlastset, enabled | select-object -property name, distinguishedname, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, enabled | Sort-Object -Property enabled, name, lastlogondate
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get inactive users 
@@ -339,13 +342,13 @@ $ReportName = "emailaliases"
 $Title = "Mailbox Address Report"
 $Subtitle = "Mailboxes in this organization and their aliases. </br>This report is in testing."
 $outobject = @()
-$mailboxes = Get-ADUser -Properties DisplayName,ProxyAddresses -Filter {ProxyAddresses -like '*'}
+$mailboxes = Get-ADUser -Properties DisplayName, ProxyAddresses -Filter { ProxyAddresses -like '*' }
 ForEach ($mailbox in $mailboxes) {
 	$mailboxHash = $null
 	$mailboxHash = [ordered]@{
-		"Display Name" = $mailbox.DisplayName
-		"Email Address" = ($mailbox.ProxyAddresses | Where-Object {$_ -CLIKE "SMTP:*"}) -Replace "SMTP:",""
-		"Email Aliases" = (($mailbox.ProxyAddresses | Where-Object {$_ -CLIKE "smtp:*"}) -Replace "smtp:","") -join [Environment]::NewLine
+		"Display Name"  = $mailbox.DisplayName
+		"Email Address" = ($mailbox.ProxyAddresses | Where-Object { $_ -CLIKE "SMTP:*" }) -Replace "SMTP:", ""
+		"Email Aliases" = (($mailbox.ProxyAddresses | Where-Object { $_ -CLIKE "smtp:*" }) -Replace "smtp:", "") -join [Environment]::NewLine
 	}
 	$resultObject = New-Object PSObject -Property $mailboxHash
 	$outobject += $resultObject
