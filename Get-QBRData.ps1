@@ -283,7 +283,7 @@ $Subtitle = "SMB shares on Windows Servers."
 if ($reportingby -ne "NT AUTHORITY\SYSTEM") {
 	#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
 	$Servers = $ServersOnline | Select-Object -ExpandProperty Server
-	$reportdata = Get-WmiObject -Class Win32_Share -ComputerName $Servers -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, Path, Description | Sort-Object -Property pscomputername 
+	$reportdata = Get-WmiObject -Class Win32_Share -ComputerName $Servers -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, Path, Description | Where-Object {!($_.Name -cmatch '^([A-Z]|IPC|ADMIN|print)\$$')} | Sort-Object -Property pscomputername 
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }
 else {
@@ -347,7 +347,7 @@ ForEach ($mailbox in $mailboxes) {
 	$mailboxHash = $null
 	$mailboxHash = [ordered]@{
 		"Display Name"  = $mailbox.DisplayName
-		"Email Address" = ($mailbox.ProxyAddresses | Where-Object { $_ -CLIKE "SMTP:*" }) -Replace "SMTP:", ""
+		"Email Address" = (($mailbox.ProxyAddresses | Where-Object { $_ -CLIKE "SMTP:*" }) -Replace "SMTP:", "") -join [Environment]::NewLine
 		"Email Aliases" = (($mailbox.ProxyAddresses | Where-Object { $_ -CLIKE "smtp:*" }) -Replace "smtp:", "") -join [Environment]::NewLine
 	}
 	$resultObject = New-Object PSObject -Property $mailboxHash
