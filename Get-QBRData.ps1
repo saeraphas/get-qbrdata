@@ -329,11 +329,14 @@ else {
 # Get custom Active Directory Groups and their users 
 $ReportName = "domaingroups"
 $Title = "Active Directory Groups Report"
-$Subtitle = "Groups specific to this organization and their members. </br>Default Built-in groups are excluded."
+#$Subtitle = "Groups specific to this organization and their members. </br>Default Built-in groups are excluded."
+$Subtitle = "Groups in Active Directory and their members. </br>Default Built-in groups are NOT excluded."
 #security groups only
 #$Groups = Get-ADGroup -Filter { GroupCategory -eq "Security" -and GroupScope -eq "Global" } -Properties isCriticalSystemObject, distinguishedname | Where-Object { !($_.IsCriticalSystemObject) } | select-object DistinguishedName, Name
-#distro and mail-enabled security groups too
-$Groups = Get-ADGroup -Filter * -Properties isCriticalSystemObject, distinguishedname | Where-Object { !($_.IsCriticalSystemObject) } | select-object DistinguishedName, Name
+#distro and mail-enabled security groups excluding builtins
+#$Groups = Get-ADGroup -Filter * -Properties isCriticalSystemObject, distinguishedname | Where-Object { !($_.IsCriticalSystemObject) } | select-object DistinguishedName, Name
+#group overload, but catches renamed groups
+$Groups = Get-ADGroup -Filter * -Properties isCriticalSystemObject, distinguishedname | select-object DistinguishedName, Name
 $reportdata = foreach ( $Group in $Groups ) { Get-ADUser -LDAPFilter "(&(objectCategory=user)(memberof=$($group.distinguishedname)))" | ForEach-Object { [pscustomobject]@{GroupName = $Group.Name; Name = $_.Name } } }
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
