@@ -178,9 +178,9 @@ $ReportName = "inactiveusers"
 $Title = "Inactive Users Report"
 $inactivitythreshold = 365
 $Subtitle = "User accounts that have not logged on to Active Directory in ~$($inactivitythreshold) days or more."
-$inactivitypad = $inactivitythreshold + 15 #pad this date by 15 days because this attrtibute is only replicated periodically
+$inactivitypad = $inactivitythreshold + 15 #pad this date by 15 days because this attribute is only replicated periodically
 $inactivitydate = (get-date).AddDays(-$inactivitypad) 
-$reportdata = Get-ADUser -Filter { (LastLogonDate -lt $inactivitydate) -and (enabled -eq $true) } -properties LastLogonDate, passwordlastset | Select-Object Name, LastLogonDate, passwordlastset | Sort-Object -Property name, lastlogondate
+$reportdata = Get-ADUser -Filter { (enabled -eq $true) } -properties LastLogonDate, passwordlastset | Where-Object { (($_.LastLogonDate -lt $inactivitydate) -or (!($_.LastLogonDate))) } | Select-Object Name, LastLogonDate, passwordlastset | Sort-Object -Property name, lastlogondate
 $reportoutput = $outputpath + $outputprefix + "inactiveusers.$outputtype"
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
