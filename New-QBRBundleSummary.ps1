@@ -84,7 +84,7 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
 
     #count SSL certificates expiring within 90d.
     [array]$ExpiringCertificates = @()
-    $ExpiringCertificates = $SSLCertificateData | Where-Object { $_.'ExpiryDays' -le 90 }
+    $ExpiringCertificates = $SSLCertificateData | Where-Object { $_.'ExpiryDays' -ge 0 -and $_.'ExpiryDays' -lt 90 }
     Write-Output "Counted $($ExpiringCertificates.count) SSL certificates expiring within 90 days."
 
     $OOSWorkstationsData = Import-Excel $ReportPath -WorkSheetName "End-of-Support PCs Report"

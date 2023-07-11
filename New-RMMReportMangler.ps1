@@ -66,9 +66,9 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
 
     #count systems with low disk
     [array]$LowDisk = @()
-    $LowDisk = $RMMData | Where-Object { $_.'Total Disk (GB)' -lt "256" }
+    $LowDisk = $RMMData | Where-Object { $_.'Total Disk (GB)' -gt "128" -and $_.'Total Disk (GB)' -le "256" }
     Write-Output "Counted $($LowDisk.count) systems with less than 256GB storage."
-    $LowDisk = $RMMData | Where-Object { $_.'Total Disk (GB)' -lt "128" }
+    $LowDisk = $RMMData | Where-Object { $_.'Total Disk (GB)' -le "128" }
     Write-Output "Counted $($LowDisk.count) systems with less than 128GB storage."
 
     $Endpoints = $RMMData | Where-Object { $_.'Device Class' -notlike "*Server*" }
