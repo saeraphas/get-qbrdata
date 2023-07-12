@@ -46,7 +46,7 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
         Add-ConditionalFormatting -WorkSheet $ws -Address "J2:J10000" -RuleType Expression -ConditionValue '=(AND(J2>128,J2<=256))' -ForeGroundColor DarkYellow -BackgroundColor LightYellow
 
         #highlight end-of-life OS
-        Add-ConditionalFormatting -WorkSheet $ws -Address "K2:K10000" -RuleType Expression -ConditionValue '=NOT(OR(ISNUMBER(SEARCH("10 Pro", K2)), ISNUMBER(SEARCH("11 Pro", K2)), ISNUMBER(SEARCH("Server 2016", K2)), ISNUMBER(SEARCH("Server 2019", K2)), ISNUMBER(SEARCH("Server 2022", K2))))' -ForeGroundColor DarkRed -BackgroundColor LightPink
+        Add-ConditionalFormatting -WorkSheet $ws -Address "K2:K10000" -RuleType Expression -ConditionValue '=NOT(OR(ISNUMBER(SEARCH("10 Pro", K2)), ISNUMBER(SEARCH("10 Enterprise", K2)), ISNUMBER(SEARCH("10 Business", K2)), ISNUMBER(SEARCH("11 Pro", K2)), ISNUMBER(SEARCH("11 Enterprise", K2)), ISNUMBER(SEARCH("11 Business", K2)), ISNUMBER(SEARCH("Server 2016", K2)), ISNUMBER(SEARCH("Server 2019", K2)), ISNUMBER(SEARCH("Server 2022", K2))))' -ForeGroundColor DarkRed -BackgroundColor LightPink
         
         #highlight warranty expiry 
         Add-ConditionalFormatting -WorkSheet $ws -Address "N2:N10000" -RuleType Expression -ConditionValue '=TODAY()-N2>365' -ForeGroundColor DarkRed -BackgroundColor LightPink
