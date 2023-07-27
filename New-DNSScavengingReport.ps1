@@ -26,6 +26,8 @@ Param (
     [switch] $Scavenge
 )
 
+$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
 function CheckPrerequisites($PrerequisiteModulesTable) {
     $PrerequisiteModules = $PrerequisiteModulesTable | ConvertFrom-Csv
     $ProgressActivity = "Checking for prerequisite modules."
@@ -54,6 +56,16 @@ ImportExcel,7.0.0
 '@
 CheckPrerequisites($PrerequisiteModulesTable)
 
+#define the output path
+$DateString = ((get-date).tostring("yyyy-MM-dd"))
+$DesktopPath = [Environment]::GetFolderPath("Desktop")
+$ReportPath = "$DesktopPath\Reports"
+#get NETBIOS domain name
+try { $ADDomain = (Get-WMIObject Win32_NTDomain).DomainName } catch { Write-Warning "An error occurred getting the AD domain name." }
+if ($ADDomain.length -ge 1) { $Customer = $ADDomain } else { $Customer = "Nexigen" }
+$ReportType = "DNS-Scavenging"
+$XLSreport = "$ReportPath\$Customer\$Customer-$ReportType-$DateString.xlsx"
+
 #$Scavenge = $false #set $true to remove stale records
 if (!($StaleRecordThresholdDays)) { $StaleRecordThresholdDays = -28 } #must be a negative number
 
@@ -70,7 +82,7 @@ foreach ($ZoneName in $ZoneNames) {
         $StaleRecords = Get-DnsServerResourceRecord -ZoneName $($ZoneName.ZoneName) -RRtype $RecordType | Where-Object { $_.Timestamp } | Where-Object { $_.Timestamp -lt ((Get-Date).AddDays($StaleRecordThresholdDays)) } 
         Write-Verbose "Zone $($ZoneName.ZoneName) has $($StalePTRRecords.count) stale $RecordType records."
         if ($($StaleRecords).count -ge 1) {
-            if ($Scavenge) { $StaleRecords | remove-DnsServerResourceRecord -ZoneName $ZoneName.ZoneName -force -whatif }
+            if ($Scavenge) { $StaleRecords | remove-DnsServerResourceRecord -ZoneName $ZoneName.ZoneName -force }
             $StaleRecordsReport += $StaleRecords
         }
     }
@@ -79,10 +91,14 @@ foreach ($ZoneName in $ZoneNames) {
 Write-Host "Total Stale Records: $($StaleRecordsReport.count)."
 #$StaleRecordsReport | Export-CSV -NTI -path c:\nexigen\stale-dns-all.csv
 $StaleRecordsReport | Select-Object -Property RecordType, Hostname, Distinguishedname, Timestamp | Export-Excel `
-    -Path c:\nexigen\stale-dns-allzones.xlsx `
-    -WorkSheetname "Stale Records" `
+    -Path $XLSreport `
+    -WorkSheetname "$ReportType" `
     -ClearSheet `
     -BoldTopRow `
     -Autosize `
     -FreezePane 2 `
     -Autofilter 
+
+Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
+Write-Output "Report output path is $XLSreport."
+$Stopwatch.Stop()
