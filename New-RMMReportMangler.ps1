@@ -1,8 +1,10 @@
 #New-RMMReportMangler
+#requires -module ImportExcel
 Param (
     [Parameter(ValueFromPipelineByPropertyName)]
     [string] $ReportPath
 )
+$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 $reportExists = Test-Path $ReportPath
 if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does not exist or could not be read. Exiting."; exit } else {
@@ -33,24 +35,36 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
         Write-Verbose "Trimmed padding."
     }
 
+    # Save File
+    Close-ExcelPackage $excel -SaveAs $ReportPath
+
+    $RecordsCount = $(Import-Excel $ReportPath -WorksheetName "Network Hardware").count
+    [int]$HighlightRangeUpper = $RecordsCount + 1
+
+    # Open Excel File
+    $excel = open-excelpackage $ReportPath
+
+    # Set Worksheet
+    $ws = $excel.Workbook.Worksheets["Network Hardware"]
+
     # Check whether the sheet contains data in the correct place.
     $cell = $ws.Cells[1, 1]
     if ($cell.value -ne 'Customer Name') { Write-Warning "Unexpected value in cell A1. Exiting."; exit } else {
         Write-Verbose "Report data aligned to A1."
 
         #Highlight low memory
-        Add-ConditionalFormatting -WorkSheet $ws -Address "I2:I10000" -RuleType LessThan -ConditionValue "8192" -ForeGroundColor DarkRed -BackgroundColor LightPink
+        Add-ConditionalFormatting -WorkSheet $ws -Address "I2:I$HighlightRangeUpper" -RuleType LessThan -ConditionValue "8192" -ForeGroundColor DarkRed -BackgroundColor LightPink
 
         #Highlight low disk
-        Add-ConditionalFormatting -WorkSheet $ws -Address "J2:J10000" -RuleType Expression -ConditionValue '=J2<=128' -ForeGroundColor DarkRed -BackgroundColor LightPink
-        Add-ConditionalFormatting -WorkSheet $ws -Address "J2:J10000" -RuleType Expression -ConditionValue '=(AND(J2>128,J2<=256))' -ForeGroundColor DarkYellow -BackgroundColor LightYellow
+        Add-ConditionalFormatting -WorkSheet $ws -Address "J2:J$HighlightRangeUpper" -RuleType Expression -ConditionValue '=J2<=128' -ForeGroundColor DarkRed -BackgroundColor LightPink
+        Add-ConditionalFormatting -WorkSheet $ws -Address "J2:J$HighlightRangeUpper" -RuleType Expression -ConditionValue '=(AND(J2>128,J2<=256))' -ForeGroundColor DarkYellow -BackgroundColor LightYellow
 
         #highlight end-of-life OS
-        Add-ConditionalFormatting -WorkSheet $ws -Address "K2:K10000" -RuleType Expression -ConditionValue '=NOT(OR(ISNUMBER(SEARCH("10 Pro", K2)), ISNUMBER(SEARCH("10 Enterprise", K2)), ISNUMBER(SEARCH("10 Business", K2)), ISNUMBER(SEARCH("11 Pro", K2)), ISNUMBER(SEARCH("11 Enterprise", K2)), ISNUMBER(SEARCH("11 Business", K2)), ISNUMBER(SEARCH("Server 2016", K2)), ISNUMBER(SEARCH("Server 2019", K2)), ISNUMBER(SEARCH("Server 2022", K2))))' -ForeGroundColor DarkRed -BackgroundColor LightPink
+        Add-ConditionalFormatting -WorkSheet $ws -Address "K2:K$HighlightRangeUpper" -RuleType Expression -ConditionValue '=NOT(OR(ISNUMBER(SEARCH("10 Pro", K2)), ISNUMBER(SEARCH("10 Enterprise", K2)), ISNUMBER(SEARCH("10 Business", K2)), ISNUMBER(SEARCH("11 Pro", K2)), ISNUMBER(SEARCH("11 Enterprise", K2)), ISNUMBER(SEARCH("11 Business", K2)), ISNUMBER(SEARCH("Server 2016", K2)), ISNUMBER(SEARCH("Server 2019", K2)), ISNUMBER(SEARCH("Server 2022", K2))))' -ForeGroundColor DarkRed -BackgroundColor LightPink
         
         #highlight warranty expiry 
-        Add-ConditionalFormatting -WorkSheet $ws -Address "N2:N10000" -RuleType Expression -ConditionValue '=TODAY()-N2>365' -ForeGroundColor DarkRed -BackgroundColor LightPink
-        Add-ConditionalFormatting -WorkSheet $ws -Address "N2:N10000" -RuleType Expression -ConditionValue '=AND(TODAY()-N2>30,TODAY()-N2<=365)' -ForeGroundColor DarkYellow -BackgroundColor LightYellow      
+        Add-ConditionalFormatting -WorkSheet $ws -Address "N2:N$HighlightRangeUpper" -RuleType Expression -ConditionValue '=TODAY()-N2>365' -ForeGroundColor DarkRed -BackgroundColor LightPink
+        Add-ConditionalFormatting -WorkSheet $ws -Address "N2:N$HighlightRangeUpper" -RuleType Expression -ConditionValue '=AND(TODAY()-N2>30,TODAY()-N2<=365)' -ForeGroundColor DarkYellow -BackgroundColor LightYellow      
 
         # Save File
         Close-ExcelPackage $excel -SaveAs $ReportPath
@@ -77,28 +91,28 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     [array]$WarrantyOK = @()
     $WarrantyOK = $RMMData | Where-Object { $_.'Device Class' -notlike "*Server*" -and $null -ne $_.'Warranty Expiry' -and $(New-TimeSpan -Start $_.'Warranty Expiry').Days -lt 0 }
     Write-Output "Counted $($WarrantyOK.count) endpoints under warranty."
-    $Percent = [math]::Round($($($WarrantyOK.count)/$($Endpoints.count)*100),2)
+    $Percent = [math]::Round($($($WarrantyOK.count) / $($Endpoints.count) * 100), 2)
     Write-Output "$Percent % of total endpoints."
 
     #count endpoints with expired warranty within the last year
     [array]$WarrantyExpired = @()
     $WarrantyExpired = $RMMData | Where-Object { $_.'Device Class' -notlike "*Server*" -and $null -ne $_.'Warranty Expiry' -and $(New-TimeSpan -Start $_.'Warranty Expiry').Days -ge 0 -and $(New-TimeSpan -Start $_.'Warranty Expiry').Days -lt 365 }
     Write-Output "Counted $($WarrantyExpired.count) endpoints with expired warranty less than a year ago."
-    $Percent = [math]::Round($($($WarrantyExpired.count)/$($Endpoints.count)*100),2)
+    $Percent = [math]::Round($($($WarrantyExpired.count) / $($Endpoints.count) * 100), 2)
     Write-Output "$Percent % of total endpoints."
     
     #count endpoints with expired warranty over 1y
     [array]$WarrantyExpired = @()
     $WarrantyExpired = $RMMData | Where-Object { $_.'Device Class' -notlike "*Server*" -and $null -ne $_.'Warranty Expiry' -and $(New-TimeSpan -Start $_.'Warranty Expiry').Days -ge 365 }
     Write-Output "Counted $($WarrantyExpired.count) endpoints with expired warranty more than a year ago."
-    $Percent = [math]::Round($($($WarrantyExpired.count)/$($Endpoints.count)*100),2)
+    $Percent = [math]::Round($($($WarrantyExpired.count) / $($Endpoints.count) * 100), 2)
     Write-Output "$Percent % of total endpoints."
    
     #count endpoints with no warranty data
     [array]$WarrantyNoData = @()
     $WarrantyNoData = $RMMData | Where-Object { $_.'Device Class' -notlike "*Server*" -and $null -eq $_.'Warranty Expiry' }
     Write-Output "Counted $($WarrantyNoData.count) endpoints with no warranty data."
-    $Percent = [math]::Round($($($WarrantyNoData.count)/$($Endpoints.count)*100),2)
+    $Percent = [math]::Round($($($WarrantyNoData.count) / $($Endpoints.count) * 100), 2)
     Write-Output "$Percent % of total endpoints."
 
     #count servers with EOL OS
@@ -106,5 +120,21 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $EOLServers = $RMMData | Where-Object { $_.'Device Class' -like "*Server*" -and $_.'OS and Service Pack' -notlike "*2016*" -and $_.'OS and Service Pack' -notlike "*2019*" -and $_.'OS and Service Pack' -notlike "*2022*" }
     Write-Output "Counted $($EOLServers.count) servers with end-of-support operating systems."
 
-    Write-Output "Finished."
+    # #count CPUs not supported by win11
+    # $IntelURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-intel-processors"
+    # $AMDURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-amd-processors"
+    # $SupportedCPUs = @()
+    # Foreach ($URL in @($IntelURL, $AMDURL)) {
+    #     $SupportedCPUs += Get-HtmlTable $URL
+    # }
+    # Function CheckWin11CPUSupport($CPUString) {
+    #     #this doesn't work because of numeric-only model numbers getting cast to double instead of str, need to figure out explicit typing when creating the array
+    #     if (($($SupportedCPUs.Model) | ForEach-Object { $CPUstring.contains($_) }) -contains $true) { return $true } else { return $false }
+    # }
+    # $DevicesWithSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description')}
+    # Write-Output "Counted $($DevicesWithSupportedCPUs.count) devices with CPUs that do not support Windows 11."
+
+    Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
+    Write-Output "Report output path is $ReportPath."
+    $Stopwatch.Stop()
 }
