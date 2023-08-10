@@ -66,6 +66,8 @@ if ($ADDomain.length -ge 1) { $Customer = $ADDomain } else { $Customer = "Nexige
 $ReportType = "DNS-Scavenging"
 $XLSreport = "$ReportPath\$Customer\$Customer-$ReportType-$DateString.xlsx"
 
+$PSNewLine = [System.Environment]::Newline
+
 #$Scavenge = $false #set $true to remove stale records
 if (!($StaleRecordThresholdDays)) { $StaleRecordThresholdDays = -28 } #must be a negative number
 
@@ -79,7 +81,8 @@ $StaleRecordsReport = @()
 foreach ($ZoneName in $ZoneNames) {
     #Get-DnsServerZoneAging -Name $($ZoneName.ZoneName) #not used yet. 
     foreach ($RecordType in $RecordTypes) {
-        $StaleRecords = Get-DnsServerResourceRecord -ZoneName $($ZoneName.ZoneName) -RRtype $RecordType | Where-Object { $_.Timestamp } | Where-Object { $_.Timestamp -lt ((Get-Date).AddDays($StaleRecordThresholdDays)) } 
+        $WarningMessage = "An error occurred looking up $RecordType records for $ZoneName." + $PSNewLine + "This RRType may not be supported in this version of Windows Server."
+        $StaleRecords = try { Get-DnsServerResourceRecord -ZoneName $($ZoneName.ZoneName) -RRtype $RecordType | Where-Object { $_.Timestamp } | Where-Object { $_.Timestamp -lt ((Get-Date).AddDays($StaleRecordThresholdDays)) } } catch { Write-Warning $WarningMessage; $StaleRecords = $false }
         Write-Verbose "Zone $($ZoneName.ZoneName) has $($StalePTRRecords.count) stale $RecordType records."
         if ($($StaleRecords).count -ge 1) {
             if ($Scavenge) { $StaleRecords | remove-DnsServerResourceRecord -ZoneName $ZoneName.ZoneName -force }
