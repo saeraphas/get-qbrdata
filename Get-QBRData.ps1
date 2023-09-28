@@ -386,6 +386,24 @@ $serverossupportedbuilds = "20348|17763|14393|9600"
 $reportdata = Get-ADComputer -Filter 'operatingsystem -like "*server*" -and enabled -eq "true"' -Properties Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Where-Object { $_.OperatingSystem -imatch $serverosnames -and $_.OperatingSystemVersion -inotmatch $serverossupportedbuilds } | Select-Object -Property Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Sort-Object -Property operatingsystemversion, name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
+#get workstation BitLocker recovery keys
+$ReportName = "bitlockercomputers"
+$Title = "Workstation BitLocker Report"
+$Subtitle = "Workstations in Active Directory with BitLocker keys"
+$computers = Get-ADComputer -Filter {OperatingSystem -notlike "*Server*"} -Properties OperatingSystem
+$reportdata = $computers | ForEach-Object {
+    $computerName = $_.Name
+    $RecoveryKey = Get-ADObject -Filter {objectClass -eq "msFVE-RecoveryInformation"} -SearchBase $_.DistinguishedName -Properties msFVE-RecoveryPassword | Select-Object -ExpandProperty msFVE-RecoveryPassword
+	if ($null -eq $RecoveryKey) {$BitLockerKeyExistsInAD = "false"} else {$BitLockerKeyExistsInAD = "true"}
+    [PSCustomObject]@{
+        "Name" = $computerName
+        "Key Exists In AD" = $BitLockerKeyExistsInAD
+		"Recovery Key" = $RecoveryKey -join ", "
+    }
+} | Sort-Object -Property Name
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+
+
 Write-Progress -Id 0 -Activity "Collecting report data." -Status "Complete."
 
 If (!($NoZip)) {

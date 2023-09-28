@@ -103,6 +103,13 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $OOSServers = $OOSServersData | Where-Object { -not $_.'Result' -eq "This report is empty." }
     Write-Output "Counted $($OOSServers.count) servers with end-of-support OS."
 
+    $BitLockersData = Import-Excel $ReportPath -WorkSheetName "Workstation BitLocker Report" | Where-Object { -not $_.Result -eq "This report is empty." }
+
+    #count workstations without BitLocker
+    [array]$NoBitLocker = @()
+    $NoBitLocker = $BitLockersData | Where-Object { $_.'Key Exists In AD' -eq "false" }
+    Write-Output "Counted $($NoBitLocker.count) workstations with no BitLocker key in AD."
+
 }
 
 Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
