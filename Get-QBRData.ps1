@@ -33,7 +33,7 @@ $DesktopPath = [Environment]::GetFolderPath("Desktop")
 $ReportPath = "$DesktopPath\Reports"
 #get NETBIOS domain name
 try { $ADDomain = (Get-WMIObject Win32_NTDomain).DomainName } catch { Write-Warning "An error occurred getting the AD domain name." }
-if ($ADDomain.length -ge 1) { $Customer = $ADDomain } else { $Customer = "Nexigen" }
+if ($ADDomain.length -ge 1) { $Customer = $ADDomain.Trim() } else { $Customer = "Nexigen" }
 $ReportType = "ActiveDirectory"
 
 $outputpath = "$ReportPath\$Customer\"
