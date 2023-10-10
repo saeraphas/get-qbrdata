@@ -33,7 +33,7 @@ $DesktopPath = [Environment]::GetFolderPath("Desktop")
 $ReportPath = "$DesktopPath\Reports"
 #get NETBIOS domain name
 try { $ADDomain = (Get-WMIObject Win32_NTDomain).DnsForestName } catch { Write-Warning "An error occurred getting the AD domain name." }
-if ($ADDomain.length -ge 1) { $Customer = $ADDomain } else { $Customer = "Nexigen" }
+if ($ADDomain.length -ge 1) { $Customer = "$ADDomain" } else { $Customer = "Nexigen" }
 $ReportType = "ActiveDirectory"
 
 $outputpath = "$ReportPath\$Customer\"
@@ -173,6 +173,12 @@ If (Get-Module -ListAvailable -Name activedirectory) { try { import-module activ
 If (Get-Module -ListAvailable -Name ImportExcel) { try { import-module ImportExcel } catch { Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true } }
 
 Write-Progress -Id 0 -Activity "Collecting report data."
+
+Write-Output "Domain name is: $ADDomain."
+Write-Output "Report type is: $ReportType."
+Write-Output "Output path is: $outputpath."
+Write-Output "Output prefix is: $outputprefix."
+Write-Output "Report Path is: $ReportPath."
 
 # Get AD user accounts and logon dates
 $ReportName = "usersaudit"
