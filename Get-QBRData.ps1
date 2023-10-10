@@ -33,7 +33,7 @@ $DesktopPath = [Environment]::GetFolderPath("Desktop")
 $ReportPath = "$DesktopPath\Reports"
 #get NETBIOS domain name
 try { $ADDomain = (Get-WMIObject Win32_NTDomain).DomainName } catch { Write-Warning "An error occurred getting the AD domain name." }
-if ($ADDomain.length -ge 1) { $Customer = $ADDomain.Trim() } else { $Customer = "Nexigen" }
+if ($ADDomain.length -ge 1) { $Customer = $ADDomain } else { $Customer = "Nexigen" }
 $ReportType = "ActiveDirectory"
 
 $outputpath = "$ReportPath\$Customer\"
@@ -412,7 +412,8 @@ If (!($NoZip)) {
 	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Creating ZIP working directory."
 	$scratchpath = $outputpath + "scratch\"
 	If (!(Test-Path -LiteralPath $scratchpath)) { New-Item -Path $scratchpath -ItemType Directory -ErrorAction Stop | Out-Null }
-	Get-ChildItem -Path $outputpath $outputprefix*.* | Where-Object { ! $_.PSIsContainer } | Where-Object { $_.Extension -ne ".zip" } | Move-Item -Destination $scratchpath 
+	$ZIPGCIString = $outputpath + $outputprefix + "*.*"
+	Get-ChildItem -Path $ZIPGCIString | Where-Object { ! $_.PSIsContainer } | Where-Object { $_.Extension -ne ".zip" } | Move-Item -Destination $scratchpath 
 
 	Write-Progress -Id 1 -Activity "Compressing report data." -Status "Adding files to ZIP."
 	#zip scratch to output using powershell v4 method
