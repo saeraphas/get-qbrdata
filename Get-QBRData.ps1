@@ -172,14 +172,28 @@ If (!(Get-Module -ListAvailable -Name ImportExcel)) {
 If (Get-Module -ListAvailable -Name activedirectory) { try { import-module activedirectory } catch { Write-Error "An error occurred importing the ActiveDirectory Powershell module. Unable to continue."; exit } }
 If (Get-Module -ListAvailable -Name ImportExcel) { try { import-module ImportExcel } catch { Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true } }
 
+$currentcomputername = (Get-ADComputer $env:COMPUTERNAME).DNSHostName
+[array]$domaincontrollers = (Get-ADDomainController -Filter *).Hostname
+if ($domaincontrollers -contains $currentcomputername) { $FromDomainController = $true }
+
 Write-Progress -Id 0 -Activity "Collecting report data."
 
 # Get AD user accounts and logon dates
 $ReportName = "usersaudit"
 $Title = "User Account Audit Report"
 $Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
-$reportdata = Get-ADUser -Filter * -Properties Name, Description, lastlogondate, passwordlastset, enabled | select-object -property name, distinguishedname, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, enabled | Sort-Object -Property enabled, name, lastlogondate
+$reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, lastlogondate, passwordlastset, passwordneverexpires, enabled | select-object -property UserPrincipalName, DisplayName, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, enabled, distinguishedname | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+
+# Get AD default password policy
+$ReportName = "defaultpasswordpolicy"
+$Title = "Default Password Policy Report"
+$Subtitle = "The default password policy for the domain $Customer.</br>This report does not reflect any fine-grained password policies applied via ADAC."
+#but only if we're running from a domain controller, this doesn't seem to work correctly from workstations with RSAT
+if ($FromDomainController){
+$reportdata = Get-ADDefaultDomainPasswordPolicy | Select-Object -Property ComplexityEnabled, MinPasswordAge, MaxPasswordAge, MinPasswordLength, PasswordHistoryCount, LockoutThreshold, LockoutDuration, LockoutObservationWindow, ReversibleEncryptionEnabled
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+}
 
 # Get inactive users 
 $ReportName = "inactiveusers"
@@ -188,7 +202,7 @@ $inactivitythreshold = 365
 $Subtitle = "User accounts that have not logged on to Active Directory in ~$($inactivitythreshold) days or more."
 $inactivitypad = $inactivitythreshold + 15 #pad this date by 15 days because this attribute is only replicated periodically
 $inactivitydate = (get-date).AddDays(-$inactivitypad) 
-$reportdata = Get-ADUser -Filter { (enabled -eq $true) } -properties LastLogonDate, passwordlastset | Where-Object { (($_.LastLogonDate -lt $inactivitydate) -or (!($_.LastLogonDate))) } | Select-Object Name, LastLogonDate, passwordlastset | Sort-Object -Property name, lastlogondate
+$reportdata = Get-ADUser -Filter { (enabled -eq $true) } -properties LastLogonDate, passwordlastset | Where-Object { (($_.LastLogonDate -lt $inactivitydate) -or (!($_.LastLogonDate))) } | Select-Object Name, LastLogonDate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } } | Sort-Object -Property name, lastlogondate
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get inactive servers
@@ -233,7 +247,7 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 $ReportName = "domainadmins"
 $Title = "Domain Administrators Report"
 $Subtitle = "Accounts with Domain Administrator permissions."
-$reportdata = Get-ADGroupMember -Identity 'Domain Admins' | Get-ADObject -Properties Name, distinguishedname, objectclass, Description | select-object -property name, distinguishedname, objectclass, description | Sort-Object -Property name
+$reportdata = Get-ADGroupMember -Identity "Domain Admins" -Recursive | Foreach-Object { Get-ADUser $_ -Properties UserPrincipalName, DisplayName, Description, LastLogonDate, passwordlastset, PasswordNeverExpires, DistinguishedName | Select-Object UserPrincipalName, DisplayName, Description, LastLogonDate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, PasswordLastSet, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, PasswordNeverExpires, DistinguishedName }
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get server disk space 
@@ -390,16 +404,16 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 $ReportName = "bitlockercomputers"
 $Title = "Workstation BitLocker Report"
 $Subtitle = "Workstations in Active Directory with BitLocker keys"
-$computers = Get-ADComputer -Filter {OperatingSystem -notlike "*Server*"} -Properties OperatingSystem
+$computers = Get-ADComputer -Filter { OperatingSystem -notlike "*Server*" } -Properties OperatingSystem
 $reportdata = $computers | ForEach-Object {
-    $computerName = $_.Name
-    $RecoveryKey = Get-ADObject -Filter {objectClass -eq "msFVE-RecoveryInformation"} -SearchBase $_.DistinguishedName -Properties msFVE-RecoveryPassword | Select-Object -ExpandProperty msFVE-RecoveryPassword
-	if ($null -eq $RecoveryKey) {$BitLockerKeyExistsInAD = "false"} else {$BitLockerKeyExistsInAD = "true"}
-    [PSCustomObject]@{
-        "Name" = $computerName
-        "Key Exists In AD" = $BitLockerKeyExistsInAD
-		"Recovery Key" = $RecoveryKey -join ", "
-    }
+	$computerName = $_.Name
+	$RecoveryKey = Get-ADObject -Filter { objectClass -eq "msFVE-RecoveryInformation" } -SearchBase $_.DistinguishedName -Properties msFVE-RecoveryPassword | Select-Object -ExpandProperty msFVE-RecoveryPassword
+	if ($null -eq $RecoveryKey) { $BitLockerKeyExistsInAD = "false" } else { $BitLockerKeyExistsInAD = "true" }
+	[PSCustomObject]@{
+		"Name"             = $computerName
+		"Key Exists In AD" = $BitLockerKeyExistsInAD
+		"Recovery Key"     = $RecoveryKey -join ", "
+	}
 } | Sort-Object -Property Name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
