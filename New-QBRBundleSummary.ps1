@@ -25,8 +25,22 @@ $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 $reportExists = Test-Path $ReportPath
 if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does not exist or could not be read. Exiting."; exit } else {
 
+    $DomainAdminsData = Import-Excel $ReportPath -WorkSheetName "Domain Administrators" | Where-Object { $_.Result -ne "This report is empty." }
+
+    #count domain admins
+    [array]$DomainAdmins = @()
+    $DomainAdmins = $DomainAdminsData
+    Write-Output "Counted $($DomainAdmins.count) Domain Administrators."
+
+    #count domain admins with blank description
+    [array]$DomainAdmins = @()
+    $DomainAdminsWithoutDescription = $DomainAdminsData | Where-Object { $null -eq $_.'description' }
+    Write-Output "Counted $($DomainAdminsWithoutDescription.count) Domain Administrators with no description set."
+
+
+
     $usersdata = Import-Excel $ReportPath -WorkSheetName "Users - Audit" | Where-Object { $_.Result -ne "This report is empty." }
-    
+
     #count user accounts with 30d+ inactive
     [array]$UsersInactive30Days = @() #strong typing in case there's exactly 1 result
     $UsersInactive30Days = $usersdata | Where-Object { $_.'Enabled' -eq "TRUE" -and $_.'Days Since Last Logon' -ge 30 }
@@ -42,6 +56,8 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $UsersInactiveUnknownDays = $usersdata | Where-Object { $_.'Enabled' -eq "TRUE" -and $null -eq $_.'Days Since Last Logon' }
     Write-Output "Counted $($UsersInactiveUnknownDays.count) user accounts not signed in for an unknown number of days."
 
+    
+
     $InactiveServersData = Import-Excel $ReportPath -WorkSheetName "Servers - Offline" | Where-Object { $_.Result -ne "This report is empty." }
 
     #count offline server accounts
@@ -49,31 +65,12 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $InactiveServers = $InactiveServersData
     Write-Output "Counted $($InactiveServers.count) servers not reachable by PING or SMB."
 
-    $InactiveComputersData = Import-Excel $ReportPath -WorkSheetName "Endpoints - Inactive" | Where-Object { $_.Result -ne "This report is empty." }
+    $OOSServersData = Import-Excel $ReportPath -WorkSheetName "Servers - End-of-Support" | Where-Object { $_.Result -ne "This report is empty." }
 
-    #count computer accounts with 180d+ inactive
-    [array]$InactiveComputers = @()
-    $InactiveComputers = $InactiveComputersData
-    Write-Output "Counted $($InactiveComputers.count) computer accounts not signed in for 180d+."
-
-    $DomainAdminsData = Import-Excel $ReportPath -WorkSheetName "Domain Administrators" | Where-Object { $_.Result -ne "This report is empty." }
-
-    #count domain admins
-    [array]$DomainAdmins = @()
-    $DomainAdmins = $DomainAdminsData
-    Write-Output "Counted $($DomainAdmins.count) Domain Administrators."
-
-    #count domain admins with blank description
-    [array]$DomainAdmins = @()
-    $DomainAdminsWithoutDescription = $DomainAdminsData | Where-Object { $null -eq $_.'description' }
-    Write-Output "Counted $($DomainAdminsWithoutDescription.count) Domain Administrators with no description set."
-
-    $DiskUtilizationData = Import-Excel $ReportPath -WorkSheetName "Servers - Storage Utilization" | Where-Object { $_.Result -ne "This report is empty." }
-
-    #count volumes with less than 10GB free space or greater than 90% used space
-    [array]$LowDiskSpace = @()
-    $LowDiskSpace = $DiskUtilizationData | Where-Object { $_.'Free Space (GB)' -le 10 -or $_.'Used Space (%)' -gt 90 }
-    Write-Output "Counted $($LowDiskSpace.count) volumes with low disk space."
+    #count end-of-support servers
+    [array]$OOSServers = @()
+    $OOSServers = $OOSServersData | Where-Object { -not $_.'Result' -eq "This report is empty." }
+    Write-Output "Counted $($OOSServers.count) servers with end-of-support OS."
 
     $NameServersData = Import-Excel $ReportPath -WorkSheetName "Servers - Interface DNS" | Where-Object { $_.Result -ne "This report is empty." }
 
@@ -89,6 +86,22 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $ExpiringCertificates = $SSLCertificateData | Where-Object { $_.'ExpiryDays' -ge 0 -and $_.'ExpiryDays' -lt 90 }
     Write-Output "Counted $($ExpiringCertificates.count) SSL certificates expiring within 90 days."
 
+    $DiskUtilizationData = Import-Excel $ReportPath -WorkSheetName "Servers - Storage Utilization" | Where-Object { $_.Result -ne "This report is empty." }
+
+    #count volumes with less than 10GB free space or greater than 90% used space
+    [array]$LowDiskSpace = @()
+    $LowDiskSpace = $DiskUtilizationData | Where-Object { $_.'Free Space (GB)' -le 10 -or $_.'Used Space (%)' -gt 90 }
+    Write-Output "Counted $($LowDiskSpace.count) volumes with low disk space."
+
+
+
+    $InactiveComputersData = Import-Excel $ReportPath -WorkSheetName "Endpoints - Inactive" | Where-Object { $_.Result -ne "This report is empty." }
+
+    #count computer accounts with 180d+ inactive
+    [array]$InactiveComputers = @()
+    $InactiveComputers = $InactiveComputersData
+    Write-Output "Counted $($InactiveComputers.count) computer accounts not signed in for 180d+."
+
     $OOSWorkstationsData = Import-Excel $ReportPath -WorkSheetName "Endpoints - End-of-Support" | Where-Object { $_.Result -ne "This report is empty." }
 
     #count end-of-support workstation
@@ -96,18 +109,11 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $OOSWorkstations = $OOSWorkstationsData | Where-Object { -not $_.'Result' -eq "This report is empty." }
     Write-Output "Counted $($OOSWorkstations.count) workstations with end-of-support OS."
 
-    $OOSServersData = Import-Excel $ReportPath -WorkSheetName "Servers - End-of-Support" | Where-Object { $_.Result -ne "This report is empty." }
-
-    #count end-of-support servers
-    [array]$OOSServers = @()
-    $OOSServers = $OOSServersData | Where-Object { -not $_.'Result' -eq "This report is empty." }
-    Write-Output "Counted $($OOSServers.count) servers with end-of-support OS."
-
-    $BitLockersData = Import-Excel $ReportPath -WorkSheetName "Endpoints - BitLocker Recovery" | Where-Object { -not $_.Result -eq "This report is empty." }
+    $BitLockerData = Import-Excel $ReportPath -WorkSheetName "Endpoints - BitLocker Recovery" | Where-Object { -not $_.Result -eq "This report is empty." }
 
     #count workstations without BitLocker
     [array]$NoBitLocker = @()
-    $NoBitLocker = $BitLockersData | Where-Object { $_.'Key Exists In AD' -eq "false" }
+    $NoBitLocker = $BitLockerData | Where-Object { $_.'Key Exists In AD' -eq "false" }
     Write-Output "Counted $($NoBitLocker.count) workstations with no BitLocker key in AD."
 
 }
