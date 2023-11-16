@@ -169,7 +169,7 @@ If (!(Get-Module -ListAvailable -Name ImportExcel)) {
 	try { Install-Module ImportExcel -scope CurrentUser -Force } catch { Write-Warning "An error occurred adding the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true }
 }
 #bail out if we can't load them
-If (Get-Module -ListAvailable -Name activedirectory) { try { import-module activedirectory } catch { Write-Error "An error occurred importing the ActiveDirectory Powershell module. Unable to continue."; exit } }
+If (Get-Module -ListAvailable -Name activedirectory) { try { import-module activedirectory | Out-Null } catch { Write-Error "An error occurred importing the ActiveDirectory Powershell module. Unable to continue."; exit } }
 If (Get-Module -ListAvailable -Name ImportExcel) { try { import-module ImportExcel } catch { Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true } }
 
 $currentcomputername = (Get-ADComputer $env:COMPUTERNAME).DNSHostName
@@ -201,8 +201,8 @@ $reportdata = Get-ADGroupMember -Identity "Domain Admins" -Recursive | Foreach-O
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get AD default password policy
-$ReportName = "domaindefaultpasswordpolicy"
-$Title = "Domain - Default Password Policy"
+$ReportName = "domain-passwordpolicy"
+$Title = "Domain - Password Policy"
 $Subtitle = "The default password policy for the domain $Customer.</br>This report does not reflect any fine-grained password policies applied via ADAC."
 #but only if we're running from a domain controller, this doesn't seem to work correctly from workstations with RSAT
 if ($FromDomainController){
@@ -211,7 +211,7 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 }
 
 # Get custom Active Directory Groups and their users 
-$ReportName = "domaingroupmemberships"
+$ReportName = "domain-groupmemberships"
 $Title = "Domain - Group Memberships"
 #$Subtitle = "Groups specific to this organization and their members. </br>Default Built-in groups are excluded."
 $Subtitle = "Groups in Active Directory and their members. </br>Default Built-in groups are NOT excluded."
@@ -225,14 +225,14 @@ $reportdata = foreach ( $Group in $Groups ) { Get-ADUser -LDAPFilter "(&(objectC
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get AD user accounts and logon dates
-$ReportName = "usersaudit"
+$ReportName = "users-audit"
 $Title = "Users - Audit"
 $Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
 $reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, lastlogondate, passwordlastset, passwordneverexpires, enabled | select-object -property UserPrincipalName, DisplayName, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, enabled, distinguishedname | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get inactive users 
-$ReportName = "usersinactive"
+$ReportName = "users-inactive"
 $Title = "Users - Inactive"
 $inactivitythreshold = 365
 $Subtitle = "User accounts that have not logged on to Active Directory in ~$($inactivitythreshold) days or more."
@@ -242,7 +242,7 @@ $reportdata = Get-ADUser -Filter { (enabled -eq $true) } -properties LastLogonDa
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 #email alias report
-$ReportName = "usersmailaddresses"
+$ReportName = "users-mailaddresses"
 $Title = "Users - Mailbox Addresses"
 $Subtitle = "Mailboxes in this organization and their aliases. </br>This report is in testing."
 $outobject = @()
@@ -261,7 +261,7 @@ $reportdata = $outobject | Sort-Object -Property "Display Name"
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get inactive servers
-$ReportName = "serversinactive"
+$ReportName = "servers-inactive"
 $Title = "Servers - Offline"
 $Subtitle = "Servers that do not respond to ICMP or SMB. This report may be empty."
 $ServersOnline = @()
