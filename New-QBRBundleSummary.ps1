@@ -25,7 +25,7 @@ $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 $reportExists = Test-Path $ReportPath
 if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does not exist or could not be read. Exiting."; exit } else {
 
-    $usersdata = Import-Excel $ReportPath -WorkSheetName "User Account Audit Report" | Where-Object { $_.Result -ne "This report is empty." }
+    $usersdata = Import-Excel $ReportPath -WorkSheetName "Users - Audit" | Where-Object { $_.Result -ne "This report is empty." }
     
     #count user accounts with 30d+ inactive
     [array]$UsersInactive30Days = @() #strong typing in case there's exactly 1 result
@@ -42,21 +42,21 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $UsersInactiveUnknownDays = $usersdata | Where-Object { $_.'Enabled' -eq "TRUE" -and $null -eq $_.'Days Since Last Logon' }
     Write-Output "Counted $($UsersInactiveUnknownDays.count) user accounts not signed in for an unknown number of days."
 
-    $InactiveServersData = Import-Excel $ReportPath -WorkSheetName "Offline Servers Report" | Where-Object { $_.Result -ne "This report is empty." }
+    $InactiveServersData = Import-Excel $ReportPath -WorkSheetName "Servers - Offline" | Where-Object { $_.Result -ne "This report is empty." }
 
     #count offline server accounts
     [array]$InactiveServers = @()
     $InactiveServers = $InactiveServersData
     Write-Output "Counted $($InactiveServers.count) servers not reachable by PING or SMB."
 
-    $InactiveComputersData = Import-Excel $ReportPath -WorkSheetName "Inactive Computers Report" | Where-Object { $_.Result -ne "This report is empty." }
+    $InactiveComputersData = Import-Excel $ReportPath -WorkSheetName "Endpoints - Inactive" | Where-Object { $_.Result -ne "This report is empty." }
 
     #count computer accounts with 180d+ inactive
     [array]$InactiveComputers = @()
     $InactiveComputers = $InactiveComputersData
     Write-Output "Counted $($InactiveComputers.count) computer accounts not signed in for 180d+."
 
-    $DomainAdminsData = Import-Excel $ReportPath -WorkSheetName "Domain Administrators Report" | Where-Object { $_.Result -ne "This report is empty." }
+    $DomainAdminsData = Import-Excel $ReportPath -WorkSheetName "Domain Administrators" | Where-Object { $_.Result -ne "This report is empty." }
 
     #count domain admins
     [array]$DomainAdmins = @()
@@ -68,42 +68,42 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $DomainAdminsWithoutDescription = $DomainAdminsData | Where-Object { $null -eq $_.'description' }
     Write-Output "Counted $($DomainAdminsWithoutDescription.count) Domain Administrators with no description set."
 
-    $DiskUtilizationData = Import-Excel $ReportPath -WorkSheetName "Server Storage Report" | Where-Object { $_.Result -ne "This report is empty." }
+    $DiskUtilizationData = Import-Excel $ReportPath -WorkSheetName "Servers - Storage Utilization" | Where-Object { $_.Result -ne "This report is empty." }
 
     #count volumes with less than 10GB free space or greater than 90% used space
     [array]$LowDiskSpace = @()
     $LowDiskSpace = $DiskUtilizationData | Where-Object { $_.'Free Space (GB)' -le 10 -or $_.'Used Space (%)' -gt 90 }
     Write-Output "Counted $($LowDiskSpace.count) volumes with low disk space."
 
-    $NameServersData = Import-Excel $ReportPath -WorkSheetName "Static DNS Servers" | Where-Object { $_.Result -ne "This report is empty." }
+    $NameServersData = Import-Excel $ReportPath -WorkSheetName "Servers - Interface DNS" | Where-Object { $_.Result -ne "This report is empty." }
 
     #count unique DNS configs
     [array]$UniqueNameservers = @()
     $UniqueNameservers = $NameServersData | Select-Object -Property NameServers -Unique
     Write-Output "Counted $($UniqueNameservers.count) unique nameserver configurations."
 
-    $SSLCertificateData = Import-Excel $ReportPath -WorkSheetName "SSL Certificates" | Where-Object { $_.Result -ne "This report is empty." }
+    $SSLCertificateData = Import-Excel $ReportPath -WorkSheetName "Servers - SSL Certificates" | Where-Object { $_.Result -ne "This report is empty." }
 
     #count SSL certificates expiring within 90d.
     [array]$ExpiringCertificates = @()
     $ExpiringCertificates = $SSLCertificateData | Where-Object { $_.'ExpiryDays' -ge 0 -and $_.'ExpiryDays' -lt 90 }
     Write-Output "Counted $($ExpiringCertificates.count) SSL certificates expiring within 90 days."
 
-    $OOSWorkstationsData = Import-Excel $ReportPath -WorkSheetName "End-of-Support PCs Report" | Where-Object { $_.Result -ne "This report is empty." }
+    $OOSWorkstationsData = Import-Excel $ReportPath -WorkSheetName "Endpoints - End-of-Support" | Where-Object { $_.Result -ne "This report is empty." }
 
     #count end-of-support workstation
     [array]$OOSWorkstations = @()
     $OOSWorkstations = $OOSWorkstationsData | Where-Object { -not $_.'Result' -eq "This report is empty." }
     Write-Output "Counted $($OOSWorkstations.count) workstations with end-of-support OS."
 
-    $OOSServersData = Import-Excel $ReportPath -WorkSheetName "End-of-Support Servers Report" | Where-Object { $_.Result -ne "This report is empty." }
+    $OOSServersData = Import-Excel $ReportPath -WorkSheetName "Servers - End-of-Support" | Where-Object { $_.Result -ne "This report is empty." }
 
     #count end-of-support servers
     [array]$OOSServers = @()
     $OOSServers = $OOSServersData | Where-Object { -not $_.'Result' -eq "This report is empty." }
     Write-Output "Counted $($OOSServers.count) servers with end-of-support OS."
 
-    $BitLockersData = Import-Excel $ReportPath -WorkSheetName "Workstation BitLocker Report" | Where-Object { -not $_.Result -eq "This report is empty." }
+    $BitLockersData = Import-Excel $ReportPath -WorkSheetName "Endpoints - BitLocker Recovery" | Where-Object { -not $_.Result -eq "This report is empty." }
 
     #count workstations without BitLocker
     [array]$NoBitLocker = @()
