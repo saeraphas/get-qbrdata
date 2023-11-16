@@ -5,12 +5,10 @@ formerly DQDQBRDC (Douglas' Quick and Dirty QBR Data Collector)
 This script collects data from a Windows AD domain controller and builds a number of reports intended for customer review as part of periodic housekeeping, license audits, true-ups, etc.
 
 ### PREREQUISITES:
-This script depends on WMF 4 and the ActiveDirectory Powershell module,  and is intended to run from a domain controller, though any domain member server or workstation with the RSAT-AD-PowerShell module installed should work.
+This script depends on WMF 5.1 and the ActiveDirectory Powershell module, and is intended to run from a domain controller.
 ```
 Install-WindowsFeature RSAT-AD-PowerShell
 ```
-
-I have personally tested this script on Windows Server 2008R2 with WMF 4 and higher though older platforms may also work. Your mileage may vary.
 
 ### USAGE:
 

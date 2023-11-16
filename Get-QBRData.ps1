@@ -18,7 +18,7 @@
 	https://github.com/saeraphas/get-qbrdata
 #>
 
-#Requires -Version 4.0
+#Requires -Version 5.1
 #Requires -Module activedirectory
 
 param([switch]$NoZip)
