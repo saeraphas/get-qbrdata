@@ -173,21 +173,36 @@ If (Get-Module -ListAvailable -Name activedirectory) { try { import-module activ
 If (Get-Module -ListAvailable -Name ImportExcel) { try { import-module ImportExcel } catch { Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true } }
 
 $currentcomputername = (Get-ADComputer $env:COMPUTERNAME).DNSHostName
-[array]$domaincontrollers = (Get-ADDomainController -Filter *).Hostname
-if ($domaincontrollers -contains $currentcomputername) { $FromDomainController = $true }
+[array]$domaincontrollers = Get-ADDomainController -Filter *
+if ($domaincontrollers.Hostname -contains $currentcomputername) { $FromDomainController = $true }
 
 Write-Progress -Id 0 -Activity "Collecting report data."
 
-# Get AD user accounts and logon dates
-$ReportName = "usersaudit"
-$Title = "User Account Audit Report"
-$Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
-$reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, lastlogondate, passwordlastset, passwordneverexpires, enabled | select-object -property UserPrincipalName, DisplayName, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, enabled, distinguishedname | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
+# Get AD domain controller info and FSMO roles
+$ReportName = "domaincontrollers"
+$Title = "Domain Controllers"
+$Subtitle = "All domain controllers in this domain and FSMO role holders."
+$reportdata = @()
+foreach ($domainController in $domainControllers) {
+    $dcName = $domainController.hostname
+    $dcRoles = $($domainController | Select-Object -ExpandProperty OperationMasterRoles) -Join ", "
+    $reportdata += [PSCustomObject]@{
+        Name = $dcName
+        'FSMO Roles' = $dcRoles
+    }
+}
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+
+# Get domain admins
+$ReportName = "domainadmins"
+$Title = "Domain Administrators"
+$Subtitle = "Accounts with Domain Administrator permissions."
+$reportdata = Get-ADGroupMember -Identity "Domain Admins" -Recursive | Foreach-Object { Get-ADUser $_ -Properties UserPrincipalName, DisplayName, Description, LastLogonDate, passwordlastset, PasswordNeverExpires, DistinguishedName | Select-Object UserPrincipalName, DisplayName, Description, LastLogonDate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, PasswordLastSet, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, PasswordNeverExpires, DistinguishedName }
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get AD default password policy
-$ReportName = "defaultpasswordpolicy"
-$Title = "Default Password Policy Report"
+$ReportName = "domaindefaultpasswordpolicy"
+$Title = "Domain - Default Password Policy"
 $Subtitle = "The default password policy for the domain $Customer.</br>This report does not reflect any fine-grained password policies applied via ADAC."
 #but only if we're running from a domain controller, this doesn't seem to work correctly from workstations with RSAT
 if ($FromDomainController){
@@ -195,9 +210,30 @@ $reportdata = Get-ADDefaultDomainPasswordPolicy | Select-Object -Property Comple
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }
 
+# Get custom Active Directory Groups and their users 
+$ReportName = "domaingroupmemberships"
+$Title = "Domain - Group Memberships"
+#$Subtitle = "Groups specific to this organization and their members. </br>Default Built-in groups are excluded."
+$Subtitle = "Groups in Active Directory and their members. </br>Default Built-in groups are NOT excluded."
+#security groups only
+#$Groups = Get-ADGroup -Filter { GroupCategory -eq "Security" -and GroupScope -eq "Global" } -Properties isCriticalSystemObject, distinguishedname | Where-Object { !($_.IsCriticalSystemObject) } | select-object DistinguishedName, Name
+#distro and mail-enabled security groups excluding builtins
+#$Groups = Get-ADGroup -Filter * -Properties isCriticalSystemObject, distinguishedname | Where-Object { !($_.IsCriticalSystemObject) } | select-object DistinguishedName, Name
+#group overload, but catches renamed groups
+$Groups = Get-ADGroup -Filter * -Properties isCriticalSystemObject, distinguishedname | select-object DistinguishedName, Name
+$reportdata = foreach ( $Group in $Groups ) { Get-ADUser -LDAPFilter "(&(objectCategory=user)(memberof=$($group.distinguishedname)))" | ForEach-Object { [pscustomobject]@{GroupName = $Group.Name; Name = $_.Name } } }
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+
+# Get AD user accounts and logon dates
+$ReportName = "usersaudit"
+$Title = "Users - Audit"
+$Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
+$reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, lastlogondate, passwordlastset, passwordneverexpires, enabled | select-object -property UserPrincipalName, DisplayName, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, enabled, distinguishedname | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+
 # Get inactive users 
-$ReportName = "inactiveusers"
-$Title = "Inactive Users Report"
+$ReportName = "usersinactive"
+$Title = "Users - Inactive"
 $inactivitythreshold = 365
 $Subtitle = "User accounts that have not logged on to Active Directory in ~$($inactivitythreshold) days or more."
 $inactivitypad = $inactivitythreshold + 15 #pad this date by 15 days because this attribute is only replicated periodically
@@ -205,9 +241,28 @@ $inactivitydate = (get-date).AddDays(-$inactivitypad)
 $reportdata = Get-ADUser -Filter { (enabled -eq $true) } -properties LastLogonDate, passwordlastset | Where-Object { (($_.LastLogonDate -lt $inactivitydate) -or (!($_.LastLogonDate))) } | Select-Object Name, LastLogonDate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } } | Sort-Object -Property name, lastlogondate
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
+#email alias report
+$ReportName = "usersmailaddresses"
+$Title = "Users - Mailbox Addresses"
+$Subtitle = "Mailboxes in this organization and their aliases. </br>This report is in testing."
+$outobject = @()
+$mailboxes = Get-ADUser -Properties DisplayName, ProxyAddresses -Filter { ProxyAddresses -like '*' }
+ForEach ($mailbox in $mailboxes) {
+	$mailboxHash = $null
+	$mailboxHash = [ordered]@{
+		"Display Name"  = $mailbox.DisplayName
+		"Email Address" = (($mailbox.ProxyAddresses | Where-Object { $_ -CLIKE "SMTP:*" }) -Replace "SMTP:", "") -join [Environment]::NewLine
+		"Email Aliases" = (($mailbox.ProxyAddresses | Where-Object { $_ -CLIKE "smtp:*" }) -Replace "smtp:", "") -join [Environment]::NewLine
+	}
+	$resultObject = New-Object PSObject -Property $mailboxHash
+	$outobject += $resultObject
+}
+$reportdata = $outobject | Sort-Object -Property "Display Name"
+New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+
 # Get inactive servers
-$ReportName = "inactiveservers"
-$Title = "Offline Servers Report"
+$ReportName = "serversinactive"
+$Title = "Servers - Offline"
 $Subtitle = "Servers that do not respond to ICMP or SMB. This report may be empty."
 $ServersOnline = @()
 $ServersOffline = @()
@@ -236,38 +291,19 @@ Foreach ($Server in $Servers) {
 $reportdata = $ServersOffline | Select-Object -Property Server, PingStatus, SMBStatus | Sort-Object -Property Server
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
-# Get inactive computers as selected output type
-$ReportName = "inactivepcs"
-$Title = "Inactive Computers Report"
-$Subtitle = "Computer accounts that have not logged on to Active Directory in ~180 days or more."
-$reportdata = search-adaccount -accountinactive -computersonly -timespan "195" | Where-Object { $_.enabled } | select-object -property name, distinguishedname, lastlogondate | Sort-Object -Property lastlogondate, name
+#get EOL server list and last known IP address
+#note: win10 build list from here https://docs.microsoft.com/en-us/windows/release-information/
+$ReportName = "servers-eol"
+$Title = "Servers - End-of-Support"
+$Subtitle = "Server accounts in Active Directory with end-of-support operating systems"
+$serverosnames = "2022|2019|2016|2012|2008|2003|2000|Windows NT"
+$serverossupportedbuilds = "20348|17763|14393|9600"
+$reportdata = Get-ADComputer -Filter 'operatingsystem -like "*server*" -and enabled -eq "true"' -Properties Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Where-Object { $_.OperatingSystem -imatch $serverosnames -and $_.OperatingSystemVersion -inotmatch $serverossupportedbuilds } | Select-Object -Property Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Sort-Object -Property operatingsystemversion, name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
-
-# Get domain admins
-$ReportName = "domainadmins"
-$Title = "Domain Administrators Report"
-$Subtitle = "Accounts with Domain Administrator permissions."
-$reportdata = Get-ADGroupMember -Identity "Domain Admins" -Recursive | Foreach-Object { Get-ADUser $_ -Properties UserPrincipalName, DisplayName, Description, LastLogonDate, passwordlastset, PasswordNeverExpires, DistinguishedName | Select-Object UserPrincipalName, DisplayName, Description, LastLogonDate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, PasswordLastSet, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, PasswordNeverExpires, DistinguishedName }
-New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
-
-# Get server disk space 
-$ReportName = "diskfreespace"
-$Title = "Server Storage Report"
-$Subtitle = "Storage utilizaion on Windows Servers."
-# but not if we're the local system account
-if ($reportingby -ne "NT AUTHORITY\SYSTEM") {
-	#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
-	$Servers = $ServersOnline | Select-Object -ExpandProperty Server
-	$reportdata = Get-WmiObject Win32_LogicalDisk -ComputerName $Servers -Filter "DriveType='3'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, DeviceID, @{N = "Disk Size (GB) "; e = { [math]::Round($($_.Size) / 1073741824, 2) } }, @{N = "Free Space (GB)"; e = { [math]::Round($($_.FreeSpace) / 1073741824, 2) } }, @{N = "Used Space (%)"; e = { [math]::Round($($_.Size - $_.FreeSpace) / $_.Size * 100, 1) } }, @{N = "Used Space (GB)"; e = { [math]::Round($($_.Size - $_.FreeSpace) / 1073741824, 2) } } 
-	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
-}
-else {
-	Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
-}
 
 # Get service accounts 
-$ReportName = "serviceaccounts"
-$Title = "Service Accounts Report"
+$ReportName = "servers-serviceaccounts"
+$Title = "Servers - Service Accounts"
 $Subtitle = "Windows Services using a custom Log On As account. </br>This report may be empty."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM") {
@@ -282,8 +318,8 @@ else {
 }
 
 # Get static nameservers on server interfaces
-$ReportName = "nameservers"
-$Title = "Static DNS servers"
+$ReportName = "servers-nameservers"
+$Title = "Servers - Interface DNS"
 $Subtitle = "DNS server addresses in use on Windows Servers. </br>This report may be empty."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM") {
@@ -297,8 +333,8 @@ else {
 }
 
 # Get file and print shares 
-$ReportName = "fileshares"
-$Title = "Network shares"
+$ReportName = "servers-fileshares"
+$Title = "Servers - Network shares"
 $Subtitle = "SMB shares on Windows Servers."
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM") {
@@ -312,8 +348,8 @@ else {
 }
 
 # Get SSL certificates
-$ReportName = "sslcertificates"
-$Title = "SSL Certificates"
+$ReportName = "servers-sslcertificates"
+$Title = "Servers - SSL Certificates"
 $Subtitle = "SSL Certificates on servers in this domain. This report may be empty. "
 # but not if we're the local system account
 if ($reportingby -ne "NT AUTHORITY\SYSTEM") {
@@ -347,62 +383,41 @@ else {
 	Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
 }
 
-# Get custom Active Directory Groups and their users 
-$ReportName = "domaingroups"
-$Title = "Active Directory Groups Report"
-#$Subtitle = "Groups specific to this organization and their members. </br>Default Built-in groups are excluded."
-$Subtitle = "Groups in Active Directory and their members. </br>Default Built-in groups are NOT excluded."
-#security groups only
-#$Groups = Get-ADGroup -Filter { GroupCategory -eq "Security" -and GroupScope -eq "Global" } -Properties isCriticalSystemObject, distinguishedname | Where-Object { !($_.IsCriticalSystemObject) } | select-object DistinguishedName, Name
-#distro and mail-enabled security groups excluding builtins
-#$Groups = Get-ADGroup -Filter * -Properties isCriticalSystemObject, distinguishedname | Where-Object { !($_.IsCriticalSystemObject) } | select-object DistinguishedName, Name
-#group overload, but catches renamed groups
-$Groups = Get-ADGroup -Filter * -Properties isCriticalSystemObject, distinguishedname | select-object DistinguishedName, Name
-$reportdata = foreach ( $Group in $Groups ) { Get-ADUser -LDAPFilter "(&(objectCategory=user)(memberof=$($group.distinguishedname)))" | ForEach-Object { [pscustomobject]@{GroupName = $Group.Name; Name = $_.Name } } }
-New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
-
-#email alias report
-$ReportName = "emailaliases"
-$Title = "Mailbox Address Report"
-$Subtitle = "Mailboxes in this organization and their aliases. </br>This report is in testing."
-$outobject = @()
-$mailboxes = Get-ADUser -Properties DisplayName, ProxyAddresses -Filter { ProxyAddresses -like '*' }
-ForEach ($mailbox in $mailboxes) {
-	$mailboxHash = $null
-	$mailboxHash = [ordered]@{
-		"Display Name"  = $mailbox.DisplayName
-		"Email Address" = (($mailbox.ProxyAddresses | Where-Object { $_ -CLIKE "SMTP:*" }) -Replace "SMTP:", "") -join [Environment]::NewLine
-		"Email Aliases" = (($mailbox.ProxyAddresses | Where-Object { $_ -CLIKE "smtp:*" }) -Replace "smtp:", "") -join [Environment]::NewLine
-	}
-	$resultObject = New-Object PSObject -Property $mailboxHash
-	$outobject += $resultObject
+# Get server disk space 
+$ReportName = "servers-diskfreespace"
+$Title = "Servers - Storage Utilization"
+$Subtitle = "Storage utilizaion on Windows Servers."
+# but not if we're the local system account
+if ($reportingby -ne "NT AUTHORITY\SYSTEM") {
+	#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$Servers = $ServersOnline | Select-Object -ExpandProperty Server
+	$reportdata = Get-WmiObject Win32_LogicalDisk -ComputerName $Servers -Filter "DriveType='3'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, DeviceID, @{N = "Disk Size (GB) "; e = { [math]::Round($($_.Size) / 1073741824, 2) } }, @{N = "Free Space (GB)"; e = { [math]::Round($($_.FreeSpace) / 1073741824, 2) } }, @{N = "Used Space (%)"; e = { [math]::Round($($_.Size - $_.FreeSpace) / $_.Size * 100, 1) } }, @{N = "Used Space (GB)"; e = { [math]::Round($($_.Size - $_.FreeSpace) / 1073741824, 2) } } 
+	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }
-$reportdata = $outobject | Sort-Object -Property "Display Name"
+else {
+	Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
+}
+
+# Get inactive computers as selected output type
+$ReportName = "endpoints-inactive"
+$Title = "Endpoints - Inactive"
+$Subtitle = "Computer accounts that have not logged on to Active Directory in ~180 days or more."
+$reportdata = search-adaccount -accountinactive -computersonly -timespan "195" | Where-Object { $_.enabled } | select-object -property name, distinguishedname, lastlogondate | Sort-Object -Property lastlogondate, name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 #get EOL PC list and last known IP address
 #note: win10 build list from here https://learn.microsoft.com/en-us/windows/release-health/release-information
-$ReportName = "eospcs"
-$Title = "End-of-Support PCs Report"
+$ReportName = "endpoints-eol"
+$Title = "Endpoints - End-of-Support"
 $Subtitle = "Computer accounts in Active Directory with end-of-support operating systems. </br>Old Win10 builds and feature updates are also included."
 $workstationosnames = "Windows 11|Windows 10|Windows 8|Windows 7|Windows Vista|Windows XP|2000|95|NT"
 $workstationossupportedbuilds = "22621|22000|19045|19044|19043|19042|19041|17763|14393"
 $reportdata = Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Where-Object { $_.OperatingSystem -imatch $workstationosnames -and $_.OperatingSystemVersion -inotmatch $workstationossupportedbuilds } | Select-Object -Property Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Sort-Object -Property operatingsystemversion, name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
-#get EOL server list and last known IP address
-#note: win10 build list from here https://docs.microsoft.com/en-us/windows/release-information/
-$ReportName = "eosservers"
-$Title = "End-of-Support Servers Report"
-$Subtitle = "Server accounts in Active Directory with end-of-support operating systems"
-$serverosnames = "2022|2019|2016|2012|2008|2003|2000|Windows NT"
-$serverossupportedbuilds = "20348|17763|14393|9600"
-$reportdata = Get-ADComputer -Filter 'operatingsystem -like "*server*" -and enabled -eq "true"' -Properties Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Where-Object { $_.OperatingSystem -imatch $serverosnames -and $_.OperatingSystemVersion -inotmatch $serverossupportedbuilds } | Select-Object -Property Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Sort-Object -Property operatingsystemversion, name
-New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
-
 #get workstation BitLocker recovery keys
-$ReportName = "bitlockercomputers"
-$Title = "Workstation BitLocker Report"
+$ReportName = "endpoints-bitlocker"
+$Title = "Endpoints - BitLocker Recovery"
 $Subtitle = "Workstations in Active Directory with BitLocker keys"
 $computers = Get-ADComputer -Filter { OperatingSystem -notlike "*Server*" } -Properties OperatingSystem
 $reportdata = $computers | ForEach-Object {
@@ -416,7 +431,6 @@ $reportdata = $computers | ForEach-Object {
 	}
 } | Sort-Object -Property Name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
-
 
 Write-Progress -Id 0 -Activity "Collecting report data." -Status "Complete."
 
