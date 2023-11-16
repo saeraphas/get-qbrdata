@@ -56,7 +56,7 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $UsersInactiveUnknownDays = $usersdata | Where-Object { $_.'Enabled' -eq "TRUE" -and $null -eq $_.'Days Since Last Logon' }
     Write-Output "Counted $($UsersInactiveUnknownDays.count) user accounts not signed in for an unknown number of days."
 
-    
+
 
     $InactiveServersData = Import-Excel $ReportPath -WorkSheetName "Servers - Offline" | Where-Object { $_.Result -ne "This report is empty." }
 
@@ -118,5 +118,6 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
 
 }
 
-Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
+$elapsedTime = [math]::Round($($Stopwatch.Elapsed.TotalSeconds), 2)
+Write-Output "Finished in $elapsedTime seconds."
 $Stopwatch.Stop()

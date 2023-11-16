@@ -172,24 +172,25 @@ If (!(Get-Module -ListAvailable -Name ImportExcel)) {
 If (Get-Module -ListAvailable -Name activedirectory) { try { import-module activedirectory | Out-Null } catch { Write-Error "An error occurred importing the ActiveDirectory Powershell module. Unable to continue."; exit } }
 If (Get-Module -ListAvailable -Name ImportExcel) { try { import-module ImportExcel } catch { Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true } }
 
-$currentcomputername = (Get-ADComputer $env:COMPUTERNAME).DNSHostName
-[array]$domaincontrollers = Get-ADDomainController -Filter *
-if ($domaincontrollers.Hostname -contains $currentcomputername) { $FromDomainController = $true }
-
 Write-Progress -Id 0 -Activity "Collecting report data."
 
 # Get AD domain controller info and FSMO roles
 $ReportName = "domaincontrollers"
 $Title = "Domain Controllers"
 $Subtitle = "All domain controllers in this domain and FSMO role holders."
+$currentcomputername = (Get-ADComputer $env:COMPUTERNAME).DNSHostName
+[array]$domaincontrollers = Get-ADDomainController -Filter *
+if ($domaincontrollers.Hostname -contains $currentcomputername) { $FromDomainController = $true }
+$domainFunctionalLevel = Get-ADDomain | Select-Object -Property DomainMode
 $reportdata = @()
 foreach ($domainController in $domainControllers) {
-    $dcName = $domainController.hostname
-    $dcRoles = $($domainController | Select-Object -ExpandProperty OperationMasterRoles) -Join ", "
-    $reportdata += [PSCustomObject]@{
-        Name = $dcName
-        'FSMO Roles' = $dcRoles
-    }
+	$dcName = $domainController.hostname
+	$dcRoles = $($domainController | Select-Object -ExpandProperty OperationMasterRoles) -Join ", "
+	$reportdata += [PSCustomObject]@{
+		Name                      = $dcName
+		'Domain Functional Level' = $domainFunctionalLevel
+		'FSMO Roles'              = $dcRoles
+	}
 }
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
@@ -205,9 +206,9 @@ $ReportName = "domain-passwordpolicy"
 $Title = "Domain - Password Policy"
 $Subtitle = "The default password policy for the domain $Customer.</br>This report does not reflect any fine-grained password policies applied via ADAC."
 #but only if we're running from a domain controller, this doesn't seem to work correctly from workstations with RSAT
-if ($FromDomainController){
-$reportdata = Get-ADDefaultDomainPasswordPolicy | Select-Object -Property ComplexityEnabled, MinPasswordAge, MaxPasswordAge, MinPasswordLength, PasswordHistoryCount, LockoutThreshold, LockoutDuration, LockoutObservationWindow, ReversibleEncryptionEnabled
-New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+if ($FromDomainController) {
+	$reportdata = Get-ADDefaultDomainPasswordPolicy | Select-Object -Property ComplexityEnabled, MinPasswordAge, MaxPasswordAge, MinPasswordLength, PasswordHistoryCount, LockoutThreshold, LockoutDuration, LockoutObservationWindow, ReversibleEncryptionEnabled
+	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }
 
 # Get custom Active Directory Groups and their users 
@@ -465,6 +466,7 @@ If (!($NoZip)) {
 
 }
 
-Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
+$elapsedTime = [math]::Round($($Stopwatch.Elapsed.TotalSeconds), 2)
+Write-Output "Finished in $elapsedTime seconds."
 Write-Output "Report output path is $outputpath."
 $Stopwatch.Stop()
