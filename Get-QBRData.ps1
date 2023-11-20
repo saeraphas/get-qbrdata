@@ -181,7 +181,7 @@ $Subtitle = "All domain controllers in this domain and FSMO role holders."
 $currentcomputername = (Get-ADComputer $env:COMPUTERNAME).DNSHostName
 [array]$domaincontrollers = Get-ADDomainController -Filter *
 if ($domaincontrollers.Hostname -contains $currentcomputername) { $FromDomainController = $true }
-$domainFunctionalLevel = Get-ADDomain | Select-Object -Property DomainMode
+$domainFunctionalLevel = Get-ADDomain | Select-Object -ExpandProperty DomainMode
 $reportdata = @()
 foreach ($domainController in $domainControllers) {
 	$dcName = $domainController.hostname
