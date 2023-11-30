@@ -408,7 +408,7 @@ else {
 $ReportName = "endpoints-inactive"
 $Title = "Endpoints - Inactive"
 $Subtitle = "Computer accounts that have not logged on to Active Directory in ~$($inactivitythreshold) days or more."
-$reportdata = search-adaccount -computersonly | Where-Object { $_.enabled } | select-object -property name, distinguishedname, lastlogondate | Where-Object { (($_.LastLogonDate -lt $inactivitydate) -or (!($_.LastLogonDate))) } | Sort-Object -Property lastlogondate, name
+$reportdata = Get-ADComputer -Filter 'operatingsystem -notlike "*server*" -and enabled -eq "true"' -Properties Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Where-Object { (($_.LastLogonDate -lt $inactivitydate) -or (!($_.LastLogonDate))) } | Select-Object -Property Name, Operatingsystem, OperatingSystemVersion, LastLogonDate, IPv4Address | Sort-Object -Property lastlogondate, name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 #get EOL PC list and last known IP address
