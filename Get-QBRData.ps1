@@ -209,7 +209,14 @@ $Title = "Domain - AD Recycle Bin"
 $Subtitle = "Scopes where the AD Recycle Bin is enabled.</br>If no scopes are enabled, AD Recycle Bin is not turned on."
 #but only if we're running from a domain controller, this doesn't seem to work correctly from workstations with RSAT
 if ($FromDomainController) {
-	$reportdata = Get-ADOptionalFeature -Filter * | Where-Object {$_.Name -eq "Recycle Bin Feature"} | Select-Object -Property Name,EnabledScopes
+	$ADRecycleBinObject = Get-ADOptionalFeature -Filter * | Where-Object { $_.Name -eq "Recycle Bin Feature" }
+	$reportdata = @()
+	$RecycleBinName = $ADRecycleBinObject | Select-Object -ExpandProperty Name
+	$RecycleBinScopes = $($ADRecycleBinObject | Select-Object -ExpandProperty EnabledScopes) -Join ", "
+	$reportdata += [PSCustomObject]@{
+		'Feature Name'   = $RecycleBinName
+		'Enabled Scopes' = $RecycleBinScopes
+	}
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }
 
