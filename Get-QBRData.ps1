@@ -213,6 +213,7 @@ if ($FromDomainController) {
 	$reportdata = @()
 	$RecycleBinName = $ADRecycleBinObject | Select-Object -ExpandProperty Name
 	$RecycleBinScopes = $($ADRecycleBinObject | Select-Object -ExpandProperty EnabledScopes) -Join ", "
+	if (!$RecycleBinScopes){ $RecycleBinScopes = "not enabled" }
 	$reportdata += [PSCustomObject]@{
 		'Feature Name'   = $RecycleBinName
 		'Enabled Scopes' = $RecycleBinScopes
