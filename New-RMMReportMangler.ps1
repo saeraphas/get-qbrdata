@@ -120,19 +120,25 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $EOLServers = $RMMData | Where-Object { $_.'Device Class' -like "*Server*" -and $_.'OS and Service Pack' -notlike "*2016*" -and $_.'OS and Service Pack' -notlike "*2019*" -and $_.'OS and Service Pack' -notlike "*2022*" }
     Write-Output "Counted $($EOLServers.count) servers with end-of-support operating systems."
 
-    # #count CPUs not supported by win11
-    # $IntelURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-intel-processors"
-    # $AMDURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-amd-processors"
-    # $SupportedCPUs = @()
-    # Foreach ($URL in @($IntelURL, $AMDURL)) {
-    #     $SupportedCPUs += Get-HtmlTable $URL
-    # }
-    # Function CheckWin11CPUSupport($CPUString) {
-    #     #this doesn't work because of numeric-only model numbers getting cast to double instead of str, need to figure out explicit typing when creating the array
-    #     if (($($SupportedCPUs.Model) | ForEach-Object { $CPUstring.contains($_) }) -contains $true) { return $true } else { return $false }
-    # }
-    # $DevicesWithSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description')}
-    # Write-Output "Counted $($DevicesWithSupportedCPUs.count) devices with CPUs that do not support Windows 11."
+    #count CPUs not supported by win11
+    $IntelURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-intel-processors"
+    $AMDURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-amd-processors"
+    $SupportedCPUs = @()
+    Foreach ($URL in @($IntelURL, $AMDURL)) {
+        $SupportedCPUs += Get-HtmlTable $URL
+    }
+    $SupportedCPUModelStrings = @()
+    Foreach ($Model in $SupportedCPUs) {
+        $modelString = $($Model.Model | Out-String ).Trim()
+        $modelObject = [PSCustomObject]@{ 'Model' = $modelString }
+        $SupportedCPUModelStrings += $modelObject
+    }    
+
+    Function CheckWin11CPUSupport($CPUString) {
+        if (($($SupportedCPUModelStrings.Model) | ForEach-Object { $CPUstring.contains($_) }) -notcontains $true) { return $true } else { return $false }
+    }
+    $DevicesWithSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description')}
+    Write-Output "Counted $($DevicesWithSupportedCPUs.count) devices with CPUs that do not support Windows 11."
 
     Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
     Write-Output "Report output path is $ReportPath."
