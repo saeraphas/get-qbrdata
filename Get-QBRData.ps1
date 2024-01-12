@@ -256,7 +256,7 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 $ReportName = "users-audit"
 $Title = "Users - Audit"
 $Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
-$reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, lastlogondate, passwordlastset, passwordneverexpires, enabled | select-object -property UserPrincipalName, DisplayName, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, enabled, distinguishedname | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
+$reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, lastlogondate, passwordlastset, passwordneverexpires, enabled, scriptpath | select-object -property UserPrincipalName, DisplayName, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, enabled, distinguishedname, scriptpath | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get inactive users 
