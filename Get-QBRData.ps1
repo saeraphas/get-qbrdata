@@ -169,7 +169,7 @@ If (!(test-path $outputpath)) { New-Item -ItemType Directory -Force -Path $outpu
 #skip trying to install prereqs for old versions of powershell
 if ($PSVersionTable.PSVersion.Major -eq 4) {
 	$skipPrereqInstall = $true
-	$skipExcel = $true
+	#$skipExcel = $true #testing this; it may still work on 2012R2 if the module is installed manually from the nupkg
 }
 
 if ($skipPrereqInstall) { Write-Warning "Prereq Module Installation Skipped." } else {
