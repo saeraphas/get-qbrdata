@@ -169,9 +169,10 @@ If (!(test-path $outputpath)) { New-Item -ItemType Directory -Force -Path $outpu
 #skip trying to install prereqs for old versions of powershell
 if ($PSVersionTable.PSVersion.Major -eq 4) {
 	$skipPrereqInstall = $true
+	$skipExcel = $true
 }
 
-if (!$skipPrereqInstall) {
+if ($skipPrereqInstall) { Write-Warning "Prereq Module Installation Skipped." } else {
 	#try to install required modules
 	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
