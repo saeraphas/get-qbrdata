@@ -18,7 +18,7 @@
 	https://github.com/saeraphas/get-qbrdata
 #>
 
-#Requires -Version 5.1
+#Requires -Version 4.0
 #Requires -Module activedirectory
 
 param(
@@ -166,17 +166,25 @@ Write-Progress -Id 0 -Activity "Checking prerequisites."
 
 If (!(test-path $outputpath)) { New-Item -ItemType Directory -Force -Path $outputpath }
 
-#try to install required modules
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+#skip trying to install prereqs for old versions of powershell
+if ($PSVersionTable.PSVersion.Major -eq 4) {
+	$skipPrereqInstall = $true
+}
 
-Try { Get-Module -ListAvailable -Name activedirectory -ErrorAction Stop } catch {
-	try { Install-Module activedirectory -scope CurrentUser -Force -ErrorAction Stop } catch { Write-Error "An error occurred adding the ActiveDirectory Powershell module. Unable to continue."; exit } 
+if (!$skipPrereqInstall) {
+	#try to install required modules
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+	Try { Get-Module -ListAvailable -Name activedirectory -ErrorAction Stop } catch {
+		try { Install-Module activedirectory -scope CurrentUser -Force -ErrorAction Stop } catch { Write-Error "An error occurred adding the ActiveDirectory Powershell module. Unable to continue."; exit } 
+	}
+	#try to install optional modules
+	If (!(Get-Module -ListAvailable -Name ImportExcel)) {
+		Try { Get-PackageProvider -ListAvailable -Name NuGet -ErrorAction Stop } catch { try { Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force } catch { Write-Warning "An error occurred adding the NuGet provider." } }
+		try { Install-Module ImportExcel -scope CurrentUser -Force } catch { Write-Warning "An error occurred adding the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true }
+	}
 }
-#try to install optional modules
-If (!(Get-Module -ListAvailable -Name ImportExcel)) {
-	Try { Get-PackageProvider -ListAvailable -Name NuGet -ErrorAction Stop } catch { try { Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force } catch { Write-Warning "An error occurred adding the NuGet provider." } }
-	try { Install-Module ImportExcel -scope CurrentUser -Force } catch { Write-Warning "An error occurred adding the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true }
-}
+
 #bail out if we can't load them
 If (Get-Module -ListAvailable -Name activedirectory) { try { import-module activedirectory | Out-Null } catch { Write-Error "An error occurred importing the ActiveDirectory Powershell module. Unable to continue."; exit } }
 If (Get-Module -ListAvailable -Name ImportExcel) { try { import-module ImportExcel } catch { Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true } }
@@ -213,7 +221,7 @@ if ($FromDomainController) {
 	$reportdata = @()
 	$RecycleBinName = $ADRecycleBinObject | Select-Object -ExpandProperty Name
 	$RecycleBinScopes = $($ADRecycleBinObject | Select-Object -ExpandProperty EnabledScopes) -Join ", "
-	if (!$RecycleBinScopes){ $RecycleBinScopes = "not enabled" }
+	if (!$RecycleBinScopes) { $RecycleBinScopes = "not enabled" }
 	$reportdata += [PSCustomObject]@{
 		'Feature Name'   = $RecycleBinName
 		'Enabled Scopes' = $RecycleBinScopes
