@@ -3,14 +3,15 @@
 	This script collects DNS scavenging data and provides a method to manually scavenge old records.
 
 .DESCRIPTION
-	Nascent stale DNS report and manual scavenger. Still developing.
+	Nascent stale DNS report and manual scavenger. Still developing. There is no UNDO capability yet. 
     Requires the DnsServer module.
 
     Supposedly this will install it on Windows Server, but it hasn't worked yet for me. 
     Add-WindowsCapability -Online -Name "Rsat.Dns.Tools~~~~0.0.1.0"
 
 .EXAMPLE
-	.\New-DNSScavengingReport.ps1
+	.\New-DNSScavengingReport.ps1 #will generate a report only
+    .\New-DNSScavengingReport.ps1 -Scavenge #will generate report and remove any DNS record with a timestamp more than 28 days old. 
 
 .NOTES
     Author:             Douglas Hammond (douglas@douglashammond.com)
