@@ -28,6 +28,10 @@ param(
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
+#check for Fortinet EDR since it breaks everything useful
+$FortinetEDRPresent = Get-Service -Name "FortiEDR Collector Service" -ErrorAction SilentlyContinue
+if ($FortinetEDRPresent) { Write-Warning "Fortinet EDR service present on this machine. Network connections may be blocked." }
+
 Write-Progress -Id 0 -Activity "Initializing variables."
 
 #define the output path
