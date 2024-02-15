@@ -6,6 +6,12 @@ Param (
 )
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
+$HasNewPS = $PSVersionTable.PSVersion -ge [version]::new(7, 4)
+$HasPowerHTML = Get-Module -ListAvailable -Name PowerHTML -ErrorAction SilentlyContinue
+$FortinetEDRPresent = Get-Service -Name "FortiEDR Collector Service" -ErrorAction SilentlyContinue
+
+if ($FortinetEDRPresent) {Write-Warning "Fortinet EDR service present on this machine. Network connections may be blocked."}
+
 $reportExists = Test-Path $ReportPath
 if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does not exist or could not be read. Exiting."; exit } else {
 
@@ -120,7 +126,8 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $EOLServers = $RMMData | Where-Object { $_.'Device Class' -like "*Server*" -and $_.'OS and Service Pack' -notlike "*2016*" -and $_.'OS and Service Pack' -notlike "*2019*" -and $_.'OS and Service Pack' -notlike "*2022*" }
     Write-Output "Counted $($EOLServers.count) servers with end-of-support operating systems."
 
-    #count CPUs not supported by win11
+if($HasPowerHTML -and $HasNewPS){
+    #count CPUs not supported by win11 (needs PS 7)
     $IntelURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-intel-processors"
     $AMDURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-amd-processors"
     $SupportedCPUs = @()
@@ -139,6 +146,7 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     }
     $DevicesWithSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description')}
     Write-Output "Counted $($DevicesWithSupportedCPUs.count) devices with CPUs that do not support Windows 11."
+}
 
     Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
     Write-Output "Report output path is $ReportPath."
