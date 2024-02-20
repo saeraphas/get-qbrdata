@@ -440,7 +440,7 @@ else {
 $ReportName = "endpoints-audit"
 $Title = "Endpoints - Audit"
 $Subtitle = "All enabled and disabled computer accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
-$reportdata = Get-ADcomputer -Filter * -Properties Name, Operatingsystem, OperatingSystemVersion, Enabled, LastLogonDate, IPv4Address | select-object -property UserPrincipalName, DisplayName, enabled, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, distinguishedname, scriptpath | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
+$reportdata = Get-ADcomputer -Filter * -Properties Name, Operatingsystem, OperatingSystemVersion, Enabled, LastLogonDate, distinguishedname | select-object -property Name, Operatingsystem, OperatingSystemVersion, enabled, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, distinguishedname |  Sort-Object -Property Name
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get inactive computers
