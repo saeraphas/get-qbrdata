@@ -266,17 +266,17 @@ $reportdata = foreach ( $Group in $Groups ) { Get-ADUser -LDAPFilter "(&(objectC
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get AD user accounts and logon dates
-$ReportName = "users-audit"
-$Title = "Users - Audit"
-$Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
-$reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, enabled, lastlogondate, passwordlastset, passwordneverexpires, scriptpath  | select-object -property UserPrincipalName, DisplayName, enabled, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, distinguishedname, scriptpath | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
-New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+#$ReportName = "users-audit"
+#$Title = "Users - Audit"
+#$Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
+#$reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, enabled, lastlogondate, passwordlastset, passwordneverexpires, scriptpath  | select-object -property UserPrincipalName, DisplayName, enabled, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, distinguishedname, scriptpath | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
+#New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get AD user accounts and logon dates
 $ReportName = "users-audit-extended"
-$Title = "Users - Audit (with forensic dates)"
+$Title = "Users - Audit (forensic dates)"
 $Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
-$reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, enabled, whencreated, whenchanged, lastlogondate, lastlogontimestamp, badpasswordtime, passwordlastset, passwordneverexpires, scriptpath  | select-object -property UserPrincipalName, DisplayName, enabled, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, distinguishedname, scriptpath | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
+$reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, enabled, whencreated, whenchanged, lastlogondate, lastlogontimestamp, badpasswordtime, passwordlastset, passwordneverexpires, scriptpath  | select-object -property UserPrincipalName, DisplayName, enabled, whencreated, whenchanged, lastlogontimestamp, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, badpasswordtime, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, distinguishedname, scriptpath | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 # Get inactive users 
