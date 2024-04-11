@@ -274,7 +274,7 @@ New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData
 
 # Get AD user accounts and logon dates
 $ReportName = "users-audit-extended"
-$Title = "Users - Audit (forensic dates)"
+$Title = "Users - Audit"
 $Subtitle = "All enabled and disabled accounts in this domain. </br>Last logon date is reported by a single domain controller and may not be 100% accurate."
 $reportdata = Get-ADUser -Filter * -Properties UserPrincipalName, DisplayName, Description, enabled, whencreated, whenchanged, lastlogondate, badpasswordtime, passwordlastset, passwordneverexpires, scriptpath  | select-object -property UserPrincipalName, DisplayName, enabled, whencreated, whenchanged, lastlogondate, @{N = 'Days Since Last Logon'; E = { (new-timespan -start $(Get-date $_.LastLogondate) -end (get-date)).days } }, @{N = 'BadPassword' ; E ={[DateTime]::FromFileTime($_.BadPasswordTime)}}, passwordlastset, @{N = 'Password Age'; E = { (new-timespan -start $(Get-date $_.passwordlastset) -end (get-date)).days } }, passwordneverexpires, distinguishedname, scriptpath | Sort-Object -Property enabled, UserPrincipalName, lastlogondate
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
