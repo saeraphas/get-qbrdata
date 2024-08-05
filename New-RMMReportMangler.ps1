@@ -29,49 +29,85 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     }
 
     # Set Worksheet
-    $ws = $excel.Workbook.Worksheets["Network Hardware"]
+    $sheet = $excel.Workbook.Worksheets["Network Hardware"]
 
     # Trim extra blank row and columns
-    $cell = $ws.Cells[1, 1]
+    $cell = $sheet.Cells[1, 1]
     if ($cell.value -ne 'Customer Name') {
-        $ws.DeleteRow(1)
-        $ws.DeleteColumn(18)
-        $ws.DeleteColumn(17)
-        $ws.DeleteColumn(16)
-        $ws.DeleteColumn(1)
+        $sheet.DeleteRow(1)
+        $sheet.DeleteColumn(18)
+        $sheet.DeleteColumn(17)
+        $sheet.DeleteColumn(16)
+        $sheet.DeleteColumn(1)
         Write-Verbose "Trimmed padding."
     }
 
-    # Save File
-    Close-ExcelPackage $excel -SaveAs $ReportPath
+    # Get customer name
+    # not using this; customer names contain invalid characters
+    #$CustomerName = $sheet.Cells[2, 1].Value
+    #Write-Output $CustomerName
+    #$ReportPath = "$CustomerName - $ReportPath"
 
+    # Save File
+    try {
+        Close-ExcelPackage $excel -SaveAs $ReportPath
+    }
+    catch {
+        Write-Warning "Error saving $ReportPath; check that the file is not already open in Excel. Exiting."; exit
+    }
+
+    
+    #Get the index of the columns with the data we need to apply conditional formatting to
     $RecordsCount = $(Import-Excel $ReportPath -WorksheetName "Network Hardware").count
     [int]$HighlightRangeUpper = $RecordsCount + 1
 
-    # Open Excel File
+    # Open Excel File 
     $excel = open-excelpackage $ReportPath
 
     # Set Worksheet
-    $ws = $excel.Workbook.Worksheets["Network Hardware"]
+    $sheet = $excel.Workbook.Worksheets["Network Hardware"]
 
     # Check whether the sheet contains data in the correct place.
-    $cell = $ws.Cells[1, 1]
+    $cell = $sheet.Cells[1, 1]
     if ($cell.value -ne 'Customer Name') { Write-Warning "Unexpected value in cell A1. Exiting."; exit } else {
         Write-Verbose "Report data aligned to A1."
 
+        $columnCount = $sheet.Dimension.Columns
+    
+        $firstrow = foreach ($column in 1..$columnCount) {
+            $sheet.Cells[1, $column].Value
+        }
+    
+        #Get the column letters with the data we need to apply conditional formatting to
+        $DeviceNameColumn = Get-ExcelColumnName $($firstrow.IndexOf('Device Name') + 1) | Select-Object -ExpandProperty ColumnName
+        $CPUDescriptionColumn = Get-ExcelColumnName $($firstrow.IndexOf('CPU Description') + 1) | Select-Object -ExpandProperty ColumnName
+        $RAMColumn = Get-ExcelColumnName $($firstrow.IndexOf('RAM (MB)') + 1) | Select-Object -ExpandProperty ColumnName
+        $DiskColumn = Get-ExcelColumnName $($firstrow.IndexOf('Total Disk (GB)') + 1) | Select-Object -ExpandProperty ColumnName
+        $OSColumn = Get-ExcelColumnName $($firstrow.IndexOf('OS and Service Pack') + 1) | Select-Object -ExpandProperty ColumnName
+        $WarrantyColumn = Get-ExcelColumnName $($firstrow.IndexOf('Warranty Expiry') + 1) | Select-Object -ExpandProperty ColumnName
+
+        #Highlight Win11 incompatible CPU
+        # this one is clumsy, it requires a second worksheet containing only the incompatible CPUs
+        $CPUConditionalFormatExpression = "=NOT(ISERROR(VLOOKUP(`$$($DeviceNameColumn)2, 'Win11 Incompatible'!`$$($DeviceNameColumn):`$$($DeviceNameColumn), 1, FALSE)))"
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($CPUDescriptionColumn)2:$($CPUDescriptionColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $CPUConditionalFormatExpression -ForeGroundColor DarkRed -BackgroundColor LightPink
+
         #Highlight low memory
-        Add-ConditionalFormatting -WorkSheet $ws -Address "I2:I$HighlightRangeUpper" -RuleType LessThan -ConditionValue "8192" -ForeGroundColor DarkRed -BackgroundColor LightPink
+        #column name is "RAM (MB)"
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($RAMColumn)2:$($RAMColumn)$HighlightRangeUpper" -RuleType LessThan -ConditionValue "8192" -ForeGroundColor DarkRed -BackgroundColor LightPink
 
         #Highlight low disk
-        Add-ConditionalFormatting -WorkSheet $ws -Address "J2:J$HighlightRangeUpper" -RuleType Expression -ConditionValue '=J2<=128' -ForeGroundColor DarkRed -BackgroundColor LightPink
-        Add-ConditionalFormatting -WorkSheet $ws -Address "J2:J$HighlightRangeUpper" -RuleType Expression -ConditionValue '=(AND(J2>128,J2<=256))' -ForeGroundColor DarkYellow -BackgroundColor LightYellow
+        #column name is "Total Disk (GB)"
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($DiskColumn)2:$($DiskColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue '=J2<=128' -ForeGroundColor DarkRed -BackgroundColor LightPink
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($DiskColumn)2:$($DiskColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue '=(AND(J2>128,J2<=256))' -ForeGroundColor DarkYellow -BackgroundColor LightYellow
 
         #highlight end-of-life OS
-        Add-ConditionalFormatting -WorkSheet $ws -Address "K2:K$HighlightRangeUpper" -RuleType Expression -ConditionValue '=NOT(OR(ISNUMBER(SEARCH("10 Pro", K2)), ISNUMBER(SEARCH("10 Enterprise", K2)), ISNUMBER(SEARCH("10 Business", K2)), ISNUMBER(SEARCH("11 Pro", K2)), ISNUMBER(SEARCH("11 Enterprise", K2)), ISNUMBER(SEARCH("11 Business", K2)), ISNUMBER(SEARCH("Server 2016", K2)), ISNUMBER(SEARCH("Server 2019", K2)), ISNUMBER(SEARCH("Server 2022", K2))))' -ForeGroundColor DarkRed -BackgroundColor LightPink
+        #column name is "OS and Service Pack"
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($OSColumn)2:$($OSColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue '=NOT(OR(ISNUMBER(SEARCH("10 Pro", K2)), ISNUMBER(SEARCH("10 Enterprise", K2)), ISNUMBER(SEARCH("10 Business", K2)), ISNUMBER(SEARCH("11 Pro", K2)), ISNUMBER(SEARCH("11 Enterprise", K2)), ISNUMBER(SEARCH("11 Business", K2)), ISNUMBER(SEARCH("Server 2016", K2)), ISNUMBER(SEARCH("Server 2019", K2)), ISNUMBER(SEARCH("Server 2022", K2))))' -ForeGroundColor DarkRed -BackgroundColor LightPink
         
         #highlight warranty expiry 
-        Add-ConditionalFormatting -WorkSheet $ws -Address "N2:N$HighlightRangeUpper" -RuleType Expression -ConditionValue '=TODAY()-N2>365' -ForeGroundColor DarkRed -BackgroundColor LightPink
-        Add-ConditionalFormatting -WorkSheet $ws -Address "N2:N$HighlightRangeUpper" -RuleType Expression -ConditionValue '=AND(TODAY()-N2>30,TODAY()-N2<=365)' -ForeGroundColor DarkYellow -BackgroundColor LightYellow      
+        #column name is "Warranty Expiry"
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue '=TODAY()-N2>365' -ForeGroundColor DarkRed -BackgroundColor LightPink
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue '=AND(TODAY()-N2>30,TODAY()-N2<=365)' -ForeGroundColor DarkYellow -BackgroundColor LightYellow      
 
         # Save File
         Close-ExcelPackage $excel -SaveAs $ReportPath
@@ -145,8 +181,10 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
         Function CheckWin11CPUSupport($CPUString) {
             if (($($SupportedCPUModelStrings.Model) | ForEach-Object { $CPUstring.contains($_) }) -notcontains $true) { return $true } else { return $false }
         }
-        $DevicesWithSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description') }
-        Write-Output "Counted $($DevicesWithSupportedCPUs.count) devices with CPUs that do not support Windows 11."
+        $DevicesWithUnSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description') }
+        Write-Output "Counted $($DevicesWithUnSupportedCPUs.count) devices with CPUs that do not support Windows 11."
+        $DevicesWithUnSupportedCPUs | Export-Excel -Path $Reportpath -ClearSheet -BoldTopRow -Autosize -FreezePane 2 -Autofilter -WorkSheetname "Win11 Incompatible" 
+
     }
 
     Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
