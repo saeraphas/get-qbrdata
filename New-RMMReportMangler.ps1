@@ -97,17 +97,22 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
 
         #Highlight low disk
         #column name is "Total Disk (GB)"
-        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($DiskColumn)2:$($DiskColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue '=J2<=128' -ForeGroundColor DarkRed -BackgroundColor LightPink
-        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($DiskColumn)2:$($DiskColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue '=(AND(J2>128,J2<=256))' -ForeGroundColor DarkYellow -BackgroundColor LightYellow
+        $DiskConditionalFormattingExpressionFail = "=$($DiskColumn)2<=128"
+        $DiskConditionalFormattingExpressionWarn = "=(AND($($DiskColumn)2>128,$($DiskColumn)2<=256))"
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($DiskColumn)2:$($DiskColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $DiskConditionalFormattingExpressionFail -ForeGroundColor DarkRed -BackgroundColor LightPink
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($DiskColumn)2:$($DiskColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $DiskConditionalFormattingExpressionWarn -ForeGroundColor DarkYellow -BackgroundColor LightYellow
 
         #highlight end-of-life OS
-        #column name is "OS and Service Pack"
-        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($OSColumn)2:$($OSColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue '=NOT(OR(ISNUMBER(SEARCH("10 Pro", K2)), ISNUMBER(SEARCH("10 Enterprise", K2)), ISNUMBER(SEARCH("10 Business", K2)), ISNUMBER(SEARCH("11 Pro", K2)), ISNUMBER(SEARCH("11 Enterprise", K2)), ISNUMBER(SEARCH("11 Business", K2)), ISNUMBER(SEARCH("Server 2016", K2)), ISNUMBER(SEARCH("Server 2019", K2)), ISNUMBER(SEARCH("Server 2022", K2))))' -ForeGroundColor DarkRed -BackgroundColor LightPink
+        #column name is "OS and Service Pack" 
+        $OSConditionalFormattingExpression = "=NOT(OR(ISNUMBER(SEARCH(`"10 Pro`", $($OSColumn)2)), ISNUMBER(SEARCH(`"10 Enterprise`", $($OSColumn)2)), ISNUMBER(SEARCH(`"10 Business`", $($OSColumn)2)), ISNUMBER(SEARCH(`"11 Pro`", $($OSColumn)2)), ISNUMBER(SEARCH(`"11 Enterprise`", $($OSColumn)2)), ISNUMBER(SEARCH(`"11 Business`", $($OSColumn)2)), ISNUMBER(SEARCH(`"Server 2016`", $($OSColumn)2)), ISNUMBER(SEARCH(`"Server 2019`", $($OSColumn)2)), ISNUMBER(SEARCH(`"Server 2022`", $($OSColumn)2))))"
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($OSColumn)2:$($OSColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $OSConditionalFormattingExpression -ForeGroundColor DarkRed -BackgroundColor LightPink
         
         #highlight warranty expiry 
-        #column name is "Warranty Expiry"
-        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue '=TODAY()-N2>365' -ForeGroundColor DarkRed -BackgroundColor LightPink
-        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue '=AND(TODAY()-N2>30,TODAY()-N2<=365)' -ForeGroundColor DarkYellow -BackgroundColor LightYellow      
+        #column name is "Warranty Expiry" 
+        $WarrantyConditionalFormattingExpressionWarn = "=TODAY()-$($WarrantyColumn)2>365"
+        $WarrantyConditionalFormattingExpressionFail = "=AND(TODAY()-$($WarrantyColumn)2>30,TODAY()-$($WarrantyColumn)2<=365)"
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $WarrantyConditionalFormattingExpressionFail -ForeGroundColor DarkRed -BackgroundColor LightPink
+        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $WarrantyConditionalFormattingExpressionWarn -ForeGroundColor DarkYellow -BackgroundColor LightYellow      
 
         # Save File
         Close-ExcelPackage $excel -SaveAs $ReportPath
@@ -165,29 +170,39 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
 
     if (!($HasPowerHTML -and $HasNewPS)) { Write-Warning "Skipping Win11 CPU compatibility count because prereqs not met." } else {
         #count CPUs not supported by win11 (needs PS 7)
-        $IntelURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-intel-processors"
         $AMDURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-amd-processors"
-        $SupportedCPUs = @()
-        Foreach ($URL in @($IntelURL, $AMDURL)) {
-            $SupportedCPUs += Get-HtmlTable $URL
-        }
-        $SupportedCPUModelStrings = @()
-        Foreach ($Model in $SupportedCPUs) {
+        $IntelURL = "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-intel-processors"
+        $SupportedAMDCPUs = Get-HtmlTable $AMDURL
+        $SupportedIntelCPUs = Get-HtmlTable $IntelURL
+
+        $SupportedAMDCPUModelStrings = @()
+        Foreach ($Model in $SupportedAMDCPUs) {
             $modelString = $($Model.Model | Out-String ).Trim()
             $modelObject = [PSCustomObject]@{ 'Model' = $modelString }
-            $SupportedCPUModelStrings += $modelObject
+            $SupportedAMDCPUModelStrings += $modelObject
+        }    
+
+        $SupportedIntelCPUModelStrings = @()
+        Foreach ($Model in $SupportedIntelCPUs) {
+            $modelString = $($Model.Model | Out-String ).Trim()
+            $modelObject = [PSCustomObject]@{ 'Model' = $modelString }
+            $SupportedIntelCPUModelStrings += $modelObject
         }    
 
         Function CheckWin11CPUSupport($CPUString) {
-            if (($($SupportedCPUModelStrings.Model) | ForEach-Object { $CPUstring.contains($_) }) -notcontains $true) { return $true } else { return $false }
+            Switch ($CPUString) {
+                { $_ -like "Intel*" } { if (($($SupportedIntelCPUModelStrings.Model) | ForEach-Object { $CPUstring.contains($_) }) -notcontains $true) { return $true } else { return $false } }
+                { $_ -like "AMD*" } { if (($($SupportedAMDCPUModelStrings.Model) | ForEach-Object { $CPUstring.contains($_) }) -notcontains $true) { return $true } else { return $false } }
+                default { return $false }
+            } 
         }
-        $DevicesWithUnSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description') }
-        Write-Output "Counted $($DevicesWithUnSupportedCPUs.count) devices with CPUs that do not support Windows 11."
-        $DevicesWithUnSupportedCPUs | Export-Excel -Path $Reportpath -ClearSheet -BoldTopRow -Autosize -FreezePane 2 -Autofilter -WorkSheetname "Win11 Incompatible" 
-
     }
+    $DevicesWithUnSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description') }
+    Write-Output "Counted $($DevicesWithUnSupportedCPUs.count) devices with CPUs that do not support Windows 11."
+    $DevicesWithUnSupportedCPUs | Export-Excel -Path $Reportpath -ClearSheet -BoldTopRow -Autosize -FreezePane 2 -Autofilter -WorkSheetname "Win11 Incompatible" 
 
-    Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
-    Write-Output "Report output path is $ReportPath."
-    $Stopwatch.Stop()
 }
+
+Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
+Write-Output "Report output path is $ReportPath."
+$Stopwatch.Stop()
