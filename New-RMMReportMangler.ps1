@@ -80,6 +80,7 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     
         #Get the column letters with the data we need to apply conditional formatting to
         $DeviceNameColumn = Get-ExcelColumnName $($firstrow.IndexOf('Device Name') + 1) | Select-Object -ExpandProperty ColumnName
+        $DeviceModelColumn = Get-ExcelColumnName $($firstrow.IndexOf('Make / Model') + 1) | Select-Object -ExpandProperty ColumnName
         $CPUDescriptionColumn = Get-ExcelColumnName $($firstrow.IndexOf('CPU Description') + 1) | Select-Object -ExpandProperty ColumnName
         $RAMColumn = Get-ExcelColumnName $($firstrow.IndexOf('RAM (MB)') + 1) | Select-Object -ExpandProperty ColumnName
         $DiskColumn = Get-ExcelColumnName $($firstrow.IndexOf('Total Disk (GB)') + 1) | Select-Object -ExpandProperty ColumnName
@@ -107,10 +108,11 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
         $OSConditionalFormattingExpression = "=NOT(OR(ISNUMBER(SEARCH(`"10 Pro`", $($OSColumn)2)), ISNUMBER(SEARCH(`"10 Enterprise`", $($OSColumn)2)), ISNUMBER(SEARCH(`"10 Business`", $($OSColumn)2)), ISNUMBER(SEARCH(`"11 Pro`", $($OSColumn)2)), ISNUMBER(SEARCH(`"11 Enterprise`", $($OSColumn)2)), ISNUMBER(SEARCH(`"11 Business`", $($OSColumn)2)), ISNUMBER(SEARCH(`"Server 2016`", $($OSColumn)2)), ISNUMBER(SEARCH(`"Server 2019`", $($OSColumn)2)), ISNUMBER(SEARCH(`"Server 2022`", $($OSColumn)2))))"
         Add-ConditionalFormatting -WorkSheet $sheet -Address "$($OSColumn)2:$($OSColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $OSConditionalFormattingExpression -ForeGroundColor DarkRed -BackgroundColor LightPink
         
-        #highlight warranty expiry 
+        #highlight warranty expiry (exclude virtual devices)
         #column name is "Warranty Expiry" 
-        $WarrantyConditionalFormattingExpressionFail = "=TODAY()-$($WarrantyColumn)2>365"
-        $WarrantyConditionalFormattingExpressionWarn = "=AND(TODAY()-$($WarrantyColumn)2>30,TODAY()-$($WarrantyColumn)2<=365)"
+        #$WarrantyConditionalFormattingExpressionFail = "=TODAY()-$($WarrantyColumn)2>365"
+        $WarrantyConditionalFormattingExpressionFail = "=AND(TODAY()-$($WarrantyColumn)2>365, NOT(ISNUMBER(SEARCH(`"irtual`", $($DeviceModelColumn)2))))"
+        $WarrantyConditionalFormattingExpressionWarn = "=AND(TODAY()-$($WarrantyColumn)2>0,TODAY()-$($WarrantyColumn)2<=365)"
         Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $WarrantyConditionalFormattingExpressionFail -ForeGroundColor DarkRed -BackgroundColor LightPink
         Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $WarrantyConditionalFormattingExpressionWarn -ForeGroundColor DarkYellow -BackgroundColor LightYellow      
 
