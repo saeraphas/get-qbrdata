@@ -109,8 +109,8 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
         
         #highlight warranty expiry 
         #column name is "Warranty Expiry" 
-        $WarrantyConditionalFormattingExpressionWarn = "=TODAY()-$($WarrantyColumn)2>365"
-        $WarrantyConditionalFormattingExpressionFail = "=AND(TODAY()-$($WarrantyColumn)2>30,TODAY()-$($WarrantyColumn)2<=365)"
+        $WarrantyConditionalFormattingExpressionFail = "=TODAY()-$($WarrantyColumn)2>365"
+        $WarrantyConditionalFormattingExpressionWarn = "=AND(TODAY()-$($WarrantyColumn)2>30,TODAY()-$($WarrantyColumn)2<=365)"
         Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $WarrantyConditionalFormattingExpressionFail -ForeGroundColor DarkRed -BackgroundColor LightPink
         Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $WarrantyConditionalFormattingExpressionWarn -ForeGroundColor DarkYellow -BackgroundColor LightYellow      
 
