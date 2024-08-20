@@ -110,8 +110,7 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
         
         #highlight warranty expiry (exclude virtual devices)
         #column name is "Warranty Expiry" 
-        #$WarrantyConditionalFormattingExpressionFail = "=TODAY()-$($WarrantyColumn)2>365"
-        $WarrantyConditionalFormattingExpressionFail = "=AND(TODAY()-$($WarrantyColumn)2>365, NOT(ISNUMBER(SEARCH(`"irtual`", $($DeviceModelColumn)2))))"
+        $WarrantyConditionalFormattingExpressionFail = "=AND(TODAY()-$($WarrantyColumn)2>365, ISERROR(SEARCH(`"irtual`", $($DeviceModelColumn)2)), ISERROR(SEARCH(`"VMware`", $($DeviceModelColumn)2)))"
         $WarrantyConditionalFormattingExpressionWarn = "=AND(TODAY()-$($WarrantyColumn)2>0,TODAY()-$($WarrantyColumn)2<=365)"
         Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $WarrantyConditionalFormattingExpressionFail -ForeGroundColor DarkRed -BackgroundColor LightPink
         Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $WarrantyConditionalFormattingExpressionWarn -ForeGroundColor DarkYellow -BackgroundColor LightYellow      
