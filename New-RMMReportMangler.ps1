@@ -35,9 +35,9 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
     $cell = $sheet.Cells[1, 1]
     if ($cell.value -ne 'Customer Name') {
         $sheet.DeleteRow(1)
-        $sheet.DeleteColumn(18)
-        $sheet.DeleteColumn(17)
-        $sheet.DeleteColumn(16)
+        # $sheet.DeleteColumn(18)
+        # $sheet.DeleteColumn(17)
+        # $sheet.DeleteColumn(16)
         $sheet.DeleteColumn(1)
         Write-Verbose "Trimmed padding."
     }
