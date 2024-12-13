@@ -87,11 +87,13 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
         $OSColumn = Get-ExcelColumnName $($firstrow.IndexOf('OS and Service Pack') + 1) | Select-Object -ExpandProperty ColumnName
         $WarrantyColumn = Get-ExcelColumnName $($firstrow.IndexOf('Warranty Expiry') + 1) | Select-Object -ExpandProperty ColumnName
 
-        #Highlight Win11 incompatible CPU
-        # this one is clumsy, it requires a second worksheet containing only the incompatible CPUs
-        $CPUConditionalFormatExpression = "=NOT(ISERROR(VLOOKUP(`$$($DeviceNameColumn)2, 'Win11 Incompatible'!`$$($DeviceNameColumn):`$$($DeviceNameColumn), 1, FALSE)))"
-        Add-ConditionalFormatting -WorkSheet $sheet -Address "$($CPUDescriptionColumn)2:$($CPUDescriptionColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $CPUConditionalFormatExpression -ForeGroundColor DarkRed -BackgroundColor LightPink
-
+        if (!($HasPowerHTML -and $HasNewPS)) { Write-Warning "Skipping Win11 CPU compatibility formatting because prereqs not met." } else {
+            #Highlight Win11 incompatible CPU
+            # this one is clumsy, it requires a second worksheet containing only the incompatible CPUs
+            $CPUConditionalFormatExpression = "=NOT(ISERROR(VLOOKUP(`$$($DeviceNameColumn)2, 'Win11 Incompatible'!`$$($DeviceNameColumn):`$$($DeviceNameColumn), 1, FALSE)))"
+            Add-ConditionalFormatting -WorkSheet $sheet -Address "$($CPUDescriptionColumn)2:$($CPUDescriptionColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $CPUConditionalFormatExpression -ForeGroundColor DarkRed -BackgroundColor LightPink
+        }
+        
         #Highlight low memory
         #column name is "RAM (MB)"
         Add-ConditionalFormatting -WorkSheet $sheet -Address "$($RAMColumn)2:$($RAMColumn)$HighlightRangeUpper" -RuleType LessThan -ConditionValue "8192" -ForeGroundColor DarkRed -BackgroundColor LightPink
