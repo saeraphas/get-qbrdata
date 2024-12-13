@@ -197,11 +197,10 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
                 default { return $false }
             } 
         }
+        $DevicesWithUnSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description') }
+        Write-Output "Counted $($DevicesWithUnSupportedCPUs.count) devices with CPUs that do not support Windows 11."
+        $DevicesWithUnSupportedCPUs | Export-Excel -Path $Reportpath -ClearSheet -BoldTopRow -Autosize -FreezePane 2 -Autofilter -WorkSheetname "Win11 Incompatible" 
     }
-    $DevicesWithUnSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description') }
-    Write-Output "Counted $($DevicesWithUnSupportedCPUs.count) devices with CPUs that do not support Windows 11."
-    $DevicesWithUnSupportedCPUs | Export-Excel -Path $Reportpath -ClearSheet -BoldTopRow -Autosize -FreezePane 2 -Autofilter -WorkSheetname "Win11 Incompatible" 
-
 }
 
 Write-Output "Finished in $($Stopwatch.Elapsed.TotalSeconds) seconds."
