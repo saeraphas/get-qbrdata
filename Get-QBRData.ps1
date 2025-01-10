@@ -199,7 +199,7 @@ if ($skipPrereqInstall) { Write-Warning "Prereq Module Installation Skipped." } 
 
 #bail out if we can't load them
 If (Get-Module -ListAvailable -Name activedirectory) { try { import-module activedirectory | Out-Null } catch { Write-Error "An error occurred importing the ActiveDirectory Powershell module. Unable to continue."; exit } }
-If (Get-Module -ListAvailable -Name ImportExcel) { try { import-module ImportExcel } catch { Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true } }
+If (Get-Module -ListAvailable -Name ImportExcel) { try { import-module ImportExcel | Out-Null } catch { Write-Warning "An error occurred importing the ImportExcel Powershell module. Excel-formatted reports will not be available."; $skipExcel = $true } }
 
 Write-Progress -Id 0 -Activity "Collecting report data."
 
@@ -322,12 +322,12 @@ $Servers = Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -
 $TimeoutSeconds = 3
 
 Foreach ($Server in $Servers) {
-	Write-Output "Testing Connectivity to server $Server."
+	Write-Verbose "Testing Connectivity to server $Server."
 	$PingStatus = Get-WmiObject -Class Win32_PingStatus -Filter "(Address='$server') and timeout=$($TimeoutSeconds*1000)"
 	$SMBStatus = start-job { test-path -path "\\$args\c$" } -ArgumentList $Server | wait-job -timeout $TimeoutSeconds | Receive-Job
 	$WinRMStatus = start-job { Invoke-Command "$args" { hostname } } -ArgumentList $Server | wait-job -timeout $TimeoutSeconds | Receive-Job -ErrorAction SilentlyContinue
 	if ($WinRMStatus -eq $Server) {$WinRMStatus = 0} else {$WinRMStatus = "did not respond within timeout" }
-	Write-Output $WinRMStatus
+	Write-Verbose $WinRMStatus
 	# Construct an object
 	$myobj = "" | Select-Object "Server", "PingStatus", "SMBStatus", "WinRMStatus"
 
@@ -382,7 +382,7 @@ $Subtitle = "Windows Services on all servers."
 if ($reportingby -ne "NT AUTHORITY\SYSTEM") {
 	#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
 	$Servers = $ServersOnline | Select-Object -ExpandProperty Server
-	$reportdata = Get-WmiObject Win32_Service -ComputerName $Servers -Filter * -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartMode, StartName | Sort-Object -Property pscomputername
+	$reportdata = Get-WmiObject Win32_Service -ComputerName $Servers -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartMode, StartName | Sort-Object -Property pscomputername
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }
 else {
