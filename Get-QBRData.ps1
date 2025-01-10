@@ -22,6 +22,7 @@
 #Requires -Module activedirectory
 
 param(
+	[CmdletBinding()]
 	[switch]$NoZip,
 	[Int32]$InactivityThreshold
 )
@@ -127,7 +128,13 @@ $HTMLPost = @"
 "@
 
 function New-Report() {
-	Param($ReportName, $Title, $Subtitle, $ReportData)
+	Param(
+		[CmdletBinding()]
+		$ReportName, 
+		$Title, 
+		$Subtitle, 
+		$ReportData
+		)
 	Write-Progress -Id 0 -Activity "Collecting report data." -CurrentOperation "Collecting $Title."
 	$HTMLPrefixed = $HTMLPre -replace "REPORTTITLE", "$Title" -replace "REPORTSUBTITLE", "$Subtitle"
 	$ReportOutput = $outputpath + $outputprefix + $ReportName
@@ -312,28 +319,34 @@ $Subtitle = "Servers that do not respond to ICMP or SMB. This report may be empt
 $ServersOnline = @()
 $ServersOffline = @()
 $Servers = Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem, enabled | Where-Object { $_.Enabled -eq $True } | Select-Object -ExpandProperty Name
-$TimeoutMillisec = 3000
+$TimeoutSeconds = 3
 
 Foreach ($Server in $Servers) {
-	$PingStatus = Get-WmiObject -Class Win32_PingStatus -Filter "(Address='$server') and timeout=$TimeoutMillisec"
-	$SMBStatus = start-job { test-path -path "\\$args\c$" } -ArgumentList $Server | wait-job -timeout 1 | Receive-Job
+	Write-Output "Testing Connectivity to server $Server."
+	$PingStatus = Get-WmiObject -Class Win32_PingStatus -Filter "(Address='$server') and timeout=$($TimeoutSeconds*1000)"
+	$SMBStatus = start-job { test-path -path "\\$args\c$" } -ArgumentList $Server | wait-job -timeout $TimeoutSeconds | Receive-Job
+	$WinRMStatus = start-job { Invoke-Command "$args" { hostname } } -ArgumentList $Server | wait-job -timeout $TimeoutSeconds | Receive-Job -ErrorAction SilentlyContinue
+	if ($WinRMStatus -eq $Server) {$WinRMStatus = 0} else {$WinRMStatus = "did not respond within timeout" }
+	Write-Output $WinRMStatus
 	# Construct an object
-	$myobj = "" | Select-Object "Server", "PingStatus", "SMBStatus"
+	$myobj = "" | Select-Object "Server", "PingStatus", "SMBStatus", "WinRMStatus"
 
 	# Fill the object
 	$myobj.Server = $Server
 	$myobj.PingStatus = $PingStatus.StatusCode
 	$myobj.SMBStatus = $SMBStatus
+	$myobj.WinRMStatus = $WinRMStatus
 
 	# Add the object to the out-array
-	If (($PingStatus.StatusCode -eq 0) -or ($SMBStatus -eq $true)) { $ServersOnline += $myobj } else { $ServersOffline += $myobj }
+	If (($PingStatus.StatusCode -eq 0) -or ($SMBStatus -eq $true) -or ( $WinRMStatus -eq 0)) { $ServersOnline += $myobj } else { $ServersOffline += $myobj }
 
 	# Clear the object
 	$myobj = $null
 	$pingstatus = $null
 	$smbstatus = $null
+	$WinRMStatus = $null
 }
-$reportdata = $ServersOffline | Select-Object -Property Server, PingStatus, SMBStatus | Sort-Object -Property Server
+$reportdata = $ServersOffline | Select-Object -Property Server, PingStatus, SMBStatus, WinRMStatus | Sort-Object -Property Server
 New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 
 #get EOL server list and last known IP address
@@ -356,7 +369,21 @@ if ($reportingby -ne "NT AUTHORITY\SYSTEM") {
 	$Servers = $ServersOnline | Select-Object -ExpandProperty Server
 	$reportdata = Get-WmiObject Win32_Service -ComputerName $Servers -Filter "not StartMode='Disabled'" -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartName | Where-Object -Property StartName -notlike "" | Where-Object -Property StartName -notmatch "LocalSystem" | Where-Object -Property StartName -notmatch "LocalService" | Where-Object -Property StartName -notmatch "NetworkService" | Sort-Object -Property pscomputername
 	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
+}
+else {
+	Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
+}
 
+# Get service accounts 
+$ReportName = "servers-services"
+$Title = "Servers - Services"
+$Subtitle = "Windows Services on all servers."
+# but not if we're the local system account
+if ($reportingby -ne "NT AUTHORITY\SYSTEM") {
+	#	$Servers 	= Get-ADComputer -Filter { OperatingSystem -Like '*Windows Server*' } -Properties OperatingSystem,enabled | Where { $_.Enabled -eq $True} | select -ExpandProperty Name
+	$Servers = $ServersOnline | Select-Object -ExpandProperty Server
+	$reportdata = Get-WmiObject Win32_Service -ComputerName $Servers -Filter * -ErrorAction SilentlyContinue | Select-Object PsComputerName, Name, StartMode, StartName | Sort-Object -Property pscomputername
+	New-Report -ReportName $ReportName -Title $Title -Subtitle $Subtitle -ReportData $reportdata
 }
 else {
 	Write-Warning "Skipped collecting $Title. This report cannot run as $reportingby."
