@@ -79,6 +79,7 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
         }
     
         #Get the column letters with the data we need to apply conditional formatting to
+        $DeviceClassColumn = Get-ExcelColumnName $($firstrow.IndexOf('Device Class') + 1) | Select-Object -ExpandProperty ColumnName
         $DeviceNameColumn = Get-ExcelColumnName $($firstrow.IndexOf('Device Name') + 1) | Select-Object -ExpandProperty ColumnName
         $DeviceModelColumn = Get-ExcelColumnName $($firstrow.IndexOf('Make / Model') + 1) | Select-Object -ExpandProperty ColumnName
         $CPUDescriptionColumn = Get-ExcelColumnName $($firstrow.IndexOf('CPU Description') + 1) | Select-Object -ExpandProperty ColumnName
@@ -112,7 +113,7 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
         
         #highlight warranty expiry (exclude virtual devices)
         #column name is "Warranty Expiry" 
-        $WarrantyConditionalFormattingExpressionFail = "=AND(TODAY()-$($WarrantyColumn)2>365, ISERROR(SEARCH(`"irtual`", $($DeviceModelColumn)2)), ISERROR(SEARCH(`"VMware`", $($DeviceModelColumn)2)))"
+        $WarrantyConditionalFormattingExpressionFail = "=AND(TODAY()-$($WarrantyColumn)2>365, ISNUMBER(SEARCH(`"indows`", $($DeviceClassColumn)2)), ISERROR(SEARCH(`"irtual`", $($DeviceModelColumn)2)), ISERROR(SEARCH(`"VMware`", $($DeviceModelColumn)2)))"
         $WarrantyConditionalFormattingExpressionWarn = "=AND(TODAY()-$($WarrantyColumn)2>0,TODAY()-$($WarrantyColumn)2<=365)"
         Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $WarrantyConditionalFormattingExpressionFail -ForeGroundColor DarkRed -BackgroundColor LightPink
         Add-ConditionalFormatting -WorkSheet $sheet -Address "$($WarrantyColumn)2:$($WarrantyColumn)$HighlightRangeUpper" -RuleType Expression -ConditionValue $WarrantyConditionalFormattingExpressionWarn -ForeGroundColor DarkYellow -BackgroundColor LightYellow      
@@ -199,7 +200,7 @@ if (!($reportExists)) { Write-Warning "Specified report file $ReportFile does no
                 default { return $false }
             } 
         }
-        $DevicesWithUnSupportedCPUs = $RMMData | Where-Object { CheckWin11CPUSupport($_.'CPU Description') }
+        $DevicesWithUnSupportedCPUs = $RMMData | Where-Object { (-not ($_.'Device Class' -like "*Server*")) -and ($_.'Device Class' -like "*Windows*") -and ($_.'OS and Service Pack' -notmatch "11") } | Where-Object { CheckWin11CPUSupport($_.'CPU Description') }
         Write-Output "Counted $($DevicesWithUnSupportedCPUs.count) devices with CPUs that do not support Windows 11."
         $DevicesWithUnSupportedCPUs | Export-Excel -Path $Reportpath -ClearSheet -BoldTopRow -Autosize -FreezePane 2 -Autofilter -WorkSheetname "Win11 Incompatible" 
     }
